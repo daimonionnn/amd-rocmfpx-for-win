@@ -369,12 +369,17 @@ Results land in `results\`.
   ([doc/bugs.md](https://github.com/daimonionnn/multi-gpu-rocm-vulkan-cuda-llm-for-win/blob/main/doc/bugs.md)),
   "Bug 2: KV cache spill to shared memory (ROCm + Windows WDDM)": with only 32 GB of OS RAM, GART/paging starves
   and ROCm falls back to shared-memory paths (historically ~60% worse generation; llama.cpp
-  issues #18011, #18159). It appeared fixed on the 2026-05 driver stack, but today's measurement
-  shows it's back — plausibly because the machine recently moved from AMD PRO drivers to regular
-  Adrenalin. Workaround being applied: **BIOS UMA rebalanced to 64 GB RAM / 64 GB VRAM**;
-  re-measure `-Ctx 262144` after the switch (note: Q8 model 27 GB + ~70 GB KV won't fit the
-  64 GB dedicated carve-out — it will rely on GTT, which is exactly what the healthier OS-RAM
-  budget should make viable). Default stays 128K until then.
+  issues #18011, #18159). **Upstream status (researched 2026-07-15):** the exact allocation bug
+  is [ROCm/ROCm #5940](https://github.com/ROCm/ROCm/issues/5940) (hipMalloc spills to shared past
+  ~32 GB of VRAM use at 96 GB UMA) — closed with an AMD assignee; community reports
+  ([lilting.ch](https://lilting.ch/en/articles/strix-halo-vram-memory-optimization)) say
+  **Adrenalin 26.2.2+ fixes the placement priority**; llama.cpp #18011 was closed as
+  driver-side. This box already runs a 2026-06-28 driver (32.0.31021.5001, 26.6.x era), so
+  today's 262K collapse is not (only) the placement bug — it's arithmetic: Q8 27 GB + ~70 GB KV
+  = 97 GB **doesn't fit the 96 GB carve-out at all**, and the 32 GB host side can't absorb the
+  spill → disk paging. Fix being applied: **BIOS UMA rebalanced to 64 GB RAM / 64 GB VRAM** —
+  spill then lands in GTT backed by ample host RAM instead of the pagefile. Re-measure
+  `-Ctx 262144` after the switch; default stays 128K until then.
 
 
 
