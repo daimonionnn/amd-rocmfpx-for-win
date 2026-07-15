@@ -2,6 +2,20 @@
 
 ROCm/HIP benchmark notes for the AMD Strix Halo machine (Minisforum MS-S1 MAX).
 
+> ## ⚠️ Era marker — BIOS 1.06 + IOMMU **ON**
+>
+> Every result below dated **2026-07-10 … 2026-07-12** was measured on **BIOS 1.06 with IOMMU
+> enabled**. On 2026-07-14 the box moved to **BIOS 1.08 + IOMMU disabled**, which lifted
+> **prefill/prompt-processing by ~10–20% at longer contexts** (decode is unaffected — measured in
+> `..\llm-inference\results\rocmfpx-ab-iommu-on.md` vs `-off.csv`). So the pp numbers below are
+> almost certainly **10–20% pessimistic** vs the current machine state; tg numbers still stand.
+> In the raw CSVs the eras are separable by the `run_time` column (before/after 2026-07-14).
+>
+> This also plausibly explains the odd Q8_0 `pp131072` spread in the long-context section
+> (137 vs 109 t/s between two runs) — IOMMU-era long-context prefill was exactly this noisy.
+>
+> **Recommendation for all Strix Halo owners: disable IOMMU in BIOS** (see README).
+
 ## Current machine / run state
 
 - Date: **2026-07-10**
@@ -115,6 +129,46 @@ Quiet-mode raw rows were preserved before this run:
 
 The live `results\rocm-*_128GB.csv` files now contain quiet (20:00–20:03), performance
 (20:21–20:23), and balanced (2026-07-12 08:35–08:37) runs, separable by the `run_time` column.
+
+## Re-run after BIOS 1.08 + IOMMU OFF (2026-07-15)
+
+Same benchmark set (`-t 16`, `-p 512`, `-n 128`, `-r 3`, FA on), clean GPU (no llama-server or
+other LLM services running — deliberately, to also rule out the "background services" hypothesis
+from the earlier anomaly hunting). Machine mode: **performance** (confirmed by the user).
+
+| Metric         | Old performance (1.06/IOMMU on) | New run 1 (1.08/IOMMU off) | Δ %        |
+|----------------|--------------------------------:|---------------------------:|-----------:|
+| Gemma pp512    |                          418.01 |                 **435.19** | **+4.1%**  |
+| Gemma tg128    |                           13.17 |                      13.33 | +1.2%      |
+| Qwen pp512     |                         1107.41 |                    1048.18 | −5.3%      |
+| Qwen tg128     |                           63.94 |                      58.13 | **−9.1%**  |
+| MTP prompt avg |                           48.57 |                      39.87 | **−17.9%** |
+| MTP gen avg    |                           25.10 |                      23.37 | −6.9%      |
+
+Mixed picture: dense Gemma prefill gains as the IOMMU A/B predicts, but the MoE and MTP rows sit
+**closer to the old *balanced* row than the old performance row**. A second run reproduced the
+first almost exactly (Gemma 437.6 / 13.44; Qwen MoE 1060.7 / 57.83; MTP prompt avg 37.3, gen
+23.3), so this is **not noise — the current machine state is stable**, and vs the old
+performance row it is: dense prefill **up ~+4–5%**, dense tg flat, **MoE tg128 down ~−9%
+(64→58), MTP prompt down ~−20%**.
+
+**Most likely explanation: the BIOS 1.06→1.08 flash changed (or reset) performance-mode power
+behavior.** BIOS updates commonly reset/alter power-profile tables, so "performance" before and
+after the flash need not be the same power state — worth re-checking the mode setting in
+BIOS/vendor tooling after any flash. The IOMMU-off gain itself is real but context-dependent:
+small at 512-token prompts (+4–5% here), large at long context (+11–21% at 32K, per the
+dedicated A/B) — and long context is what the real workload cares about.
+
+Two of the old open questions can be closed:
+
+- **"Was the odd slow run caused by background services (SQL Server, Defender)?"** — Partially
+  moot: the dominant distortion of that era was IOMMU-on long-context prefill noise (±14% at
+  32K, −20% swings at 128K). Still, benchmark on an idle box; an *active* LLM server or heavy
+  service on the same GPU/memory bus absolutely can skew a run.
+- **"Does the 64/96 GB dedicated-VRAM split matter for models smaller than the split?"** — No
+  reason it should: llama.cpp HIP on Strix Halo uses unified memory (GTT), so the BIOS carve-out
+  only changes what is *reported* as dedicated. The earlier suspect results are explained by the
+  IOMMU-era prefill noise; no VRAM-split re-test is needed unless a model exceeds the carve-out.
 
 ## Long-context 128K check (Balanced vs Performance)
 

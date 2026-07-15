@@ -229,6 +229,9 @@ ROCm-path prefill gained +1% at 4K, +6% at 16K, **+11–21% at 32K**, consistent
 configs. The Vulkan path barely moved, pointing at HIP DMA translation overhead as the mechanism.
 Since long-context prefill is this box's whole bottleneck, that's a free win — the 128K TTFT
 numbers elsewhere in this README predate it and are now conservative.
+**Recommendation for every Strix Halo owner: disable IOMMU.** On Windows the only way is BIOS
+(IOMMU / AMD-Vi under chipset/advanced settings); on Linux either BIOS or the `amd_iommu=off`
+kernel parameter (GRUB).
 
 The genuinely interesting lane for this box is `Q8_0_ROCMFPX_AGENT` — 8-bit (so no quality
 give-up) with a preset that claims to protect tool-calling/JSON coherency, which is exactly the

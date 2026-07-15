@@ -23,6 +23,21 @@ Key measured facts about this box (details in `results-strix-halo-rocm.md` and
 gfx1151-specific build is up to **4.66× faster** at 128K prefill than the generic HIP build;
 MTP speculative decoding ~doubles decode.
 
+## ⚠️ Strix Halo owners: disable IOMMU in BIOS
+
+Measured on this box (BIOS 1.06→1.08, IOMMU on→off, full A/B in
+`..\llm-inference\results\rocmfpx-ab-iommu-on.md`): with IOMMU enabled, **prompt processing /
+prefill loses ~10–20% at 16K–32K context, and the loss grows with context length**. Decode is
+unaffected (it's memory-bandwidth-bound; the overhead is in HIP DMA translation, which prefill
+hammers). Free performance:
+
+- **Windows:** BIOS is the only way — find IOMMU (AMD-Vi) under chipset/advanced settings and
+  set it to *Disabled*.
+- **Linux:** BIOS works too, or boot with `amd_iommu=off` (kernel/GRUB parameter).
+
+Results in this repo measured **before 2026-07-14** predate this change and read 10–20% low
+on prefill.
+
 ## Tests
 
 ### ROCm / APU pack (Gemma + Qwen + Qwen MTP) — `Run-RocmTest.ps1`
