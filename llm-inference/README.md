@@ -374,10 +374,21 @@ Results land in `results\`.
   | Q8_0 (27 GB) | 262144 | ~97 GB **> 96** | 2–13 t/s | ❌ paging collapse |
   | **ROCmFP4 (15.7 GB)** | **262144** | ~86 GB | **23–26 t/s** | ✅ **full native ctx works** |
 
-  So: **Q8 tops out at ~224K; the FP4 model runs Qwen's full native 262144** on the current
-  BIOS split. Switching BIOS to 64/64 would *reduce* GPU-addressable memory (64+32=96 GB) and
-  is counterproductive. `Serve-Qwen.ps1` now auto-picks 204800 (rocm7/Q8) or 262144
-  (rocmfpx/FP4). Background on the underlying allocation-placement bug ("shared fills while
+  So at 96/32: **Q8 tops out at ~224K; the FP4 model loads at full native 262144** (shallow —
+  deep fill was untested and risky, since ~half the KV misplaces to the 32 GB host).
+  `Serve-Qwen.ps1` auto-picks 204800 (rocm7/Q8) or 262144 (rocmfpx/FP4).
+
+  **64/64 split re-test (2026-07-15) — counterintuitive but measured better for deep context.**
+  Switching BIOS to 64 GB RAM / 64 GB VRAM *lowers* nominal GPU-addressable memory (64+32=96 vs
+  96+16=112 GB), but because the ROCm driver misplaces ~half the KV to host anyway (see below),
+  what actually gates deep context is **host RAM**, and 64/64 doubles it (32→64 GB). Measured,
+  FP4 @262K: after a 35K prefill, host free **36.8 GB vs 5.0 GB** at 96/32 (placement identical,
+  prefill 261 t/s identical — the split doesn't touch the driver bug, only the headroom). A
+  **fully-filled 135K context decoded at 15.6 t/s with no collapse and 35 GB host still free** —
+  vs the 96/32 split where Q8@262K collapsed to 2–13 t/s. Verdict: **for KV-heavy 128K+ work,
+  64/64 is the safer split** despite the smaller nominal GPU pool; 96/32 only wins if you need
+  the model itself to exceed ~96 GB (not the case here). Full 262144 fill still unverified on
+  either split. Background on the underlying allocation-placement bug ("shared fills while
   VRAM is free" — still observable on the 2026-06-28 driver, harmless while the hot set fits
   VRAM): [ROCm/ROCm #5940](https://github.com/ROCm/ROCm/issues/5940) (closed, AMD assignee),
   llama.cpp [#18011](https://github.com/ggml-org/llama.cpp/issues/18011)/[#18159](https://github.com/ggml-org/llama.cpp/issues/18159),
