@@ -152,12 +152,37 @@ first almost exactly (Gemma 437.6 / 13.44; Qwen MoE 1060.7 / 57.83; MTP prompt a
 performance row it is: dense prefill **up ~+4–5%**, dense tg flat, **MoE tg128 down ~−9%
 (64→58), MTP prompt down ~−20%**.
 
-**Most likely explanation: the BIOS 1.06→1.08 flash changed (or reset) performance-mode power
-behavior.** BIOS updates commonly reset/alter power-profile tables, so "performance" before and
-after the flash need not be the same power state — worth re-checking the mode setting in
-BIOS/vendor tooling after any flash. The IOMMU-off gain itself is real but context-dependent:
-small at 512-token prompts (+4–5% here), large at long context (+11–21% at 32K, per the
-dedicated A/B) — and long context is what the real workload cares about.
+**Most likely explanation: the BIOS 1.06→1.08 flash changed performance-mode power behavior**
+(the mode *was* re-selected after the flash, so it's not a reset — the 1.08 tables themselves
+appear to differ). Either way, the short-context regression is irrelevant for the real workload —
+see the 128K re-run below.
+
+### 128K re-run (the number that actually matters) — IOMMU OFF / BIOS 1.08, performance mode
+
+Same method as the "Long-context 128K check" below (same `bin\` build, `-ub 1024`, r=1 for the
+128K pass). Q8_0 is the unsloth MTP-pack file (27.0 GiB vs the old 26.6 GiB lmstudio file, which
+is no longer on disk — ~2% size handicap, still directly comparable):
+
+| Model   | Metric      | Old balanced | Old performance | New (IOMMU off) | vs old perf |
+|---------|-------------|-------------:|----------------:|----------------:|------------:|
+| Q4_K_XL | pp131072    |       115.45 |          111.79 |      **146.85** |  **+31.4%** |
+| Q4_K_XL | tg128@128k  |        11.85 |           12.07 |           11.61 |       −3.8% |
+| Q4_K_XL | tg128-fresh |        11.90 |           12.15 |           12.07 |       −0.7% |
+| Q8_0    | pp131072    |       137.14 |          108.95 |      **152.04** |  **+39.6%** |
+| Q8_0    | tg128@128k  |         7.58 |            7.58 |            7.50 |       −1.1% |
+| Q8_0    | tg128-fresh |         7.55 |            7.56 |            7.54 |       −0.3% |
+
+Conclusions:
+
+1. **IOMMU-off dominates at long context**: 128K prefill +31–40% vs the old performance-mode
+   runs. Q8_0 TTFT at 128K drops from ~20 min to **~14.4 min** (131072 ÷ 152.04).
+2. **Decode is untouched** at any context (bandwidth-bound, as always) — so the −9% MoE tg /
+   −20% MTP-prompt regression seen in the *short* pack above never materializes at 128K.
+   The short-context pack is the wrong lens for judging this machine change.
+3. **The old Q8_0 anomaly (137 vs 109 t/s between balanced/performance) is closed**: 137 was
+   near the truth, 109 was an IOMMU-era long-prefill dropout. No 64/96 GB VRAM-split or
+   background-service explanation is needed.
+4. **Prefill stays quant-independent** (Q8 152.0 ≈ Q4 146.9), matching every earlier measurement.
 
 Two of the old open questions can be closed:
 

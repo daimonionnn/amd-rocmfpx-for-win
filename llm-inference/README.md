@@ -227,8 +227,10 @@ yet. Until it says otherwise, **the production Q8_0 config in §5 stands.**
 Decode was completely flat (7.57→7.66 fresh, 12.21→12.20 fp4 @32K — bandwidth unaffected), but
 ROCm-path prefill gained +1% at 4K, +6% at 16K, **+11–21% at 32K**, consistently across three
 configs. The Vulkan path barely moved, pointing at HIP DMA translation overhead as the mechanism.
-Since long-context prefill is this box's whole bottleneck, that's a free win — the 128K TTFT
-numbers elsewhere in this README predate it and are now conservative.
+Since long-context prefill is this box's whole bottleneck, that's a free win — **confirmed at
+128K** (`..\llm-bench\results-strix-halo-rocm.md`, 2026-07-15): Q8_0 `pp131072` went 109→152 t/s
+(+40% vs the old performance-mode run), i.e. **128K TTFT ~14.4 min**; decode unchanged. The 128K
+TTFT numbers elsewhere in this README predate the change and read conservative.
 **Recommendation for every Strix Halo owner: disable IOMMU.** On Windows the only way is BIOS
 (IOMMU / AMD-Vi under chipset/advanced settings); on Linux either BIOS or the `amd_iommu=off`
 kernel parameter (GRUB).
