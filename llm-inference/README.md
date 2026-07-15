@@ -217,11 +217,23 @@ measure tool-calling discipline or long-context recall, which is where 4-bit err
 agents most. Verdict unchanged: Q8 for the 100K+ agent (where FP4 buys no decode anyway, see
 below), FP4 for short interactive use where its 1.8× decode is actually felt.
 
-**The open question.** These are ≤32K numbers, where weight size still rules decode. §7 measured
-that at 128K **Q4 and Q8 decode converge** (both 9.9 t/s) because the f16 KV cache (~35 GB)
-dominates memory traffic and is quant-independent. So on the real 100K+ agent workload ROCmFP4's
-decode edge should shrink toward zero; `rocmfpx-ab.ps1 -Full` (the 128K points) hasn't been run
-yet. Until it says otherwise, **the production Q8_0 config in §5 stands.**
+**The 128K points — measured (`scripts\rocmfpx-128k.ps1`, fork runtime, ROCm0, true decode at
+depth via `-d 131072`, IOMMU off):**
+
+| Config @128K       | pp131072 | tg128 @d131072 |
+|--------------------|---------:|---------------:|
+| ROCmFP4 (15.7 GiB) |    155.9 |       **9.19** |
+| Q8_0 (27.0 GiB)    |    156.0 |           6.06 |
+
+Three findings: (1) **prefill is perfectly quant-independent at 128K** (155.9 ≈ 156.0), and the
+fork keeps a small prefill edge over lemonade even here (156 vs 152). (2) **FP4's decode edge
+narrows but does NOT vanish: 1.79× short → 1.52× @128K.** §7's full Q4=Q8 convergence (both
+9.9 t/s) was measured *with MTP* — in raw decode the KV traffic only eats part of the weight
+advantage. (3) The intriguing corollary: FP4's raw 9.19 t/s is already near the production
+Q8+MTP 9.9 t/s — **FP4+MTP could plausibly be the fastest 128K decode on this box** (unmeasured;
+the fork's MTP path is slower per §above, so not a given). It would still cost −1.7% PPL →
+**the production Q8_0 config in §5 stands on quality grounds**, but FP4+MTP is now a legitimate
+speed-first option to measure rather than a ruled-out one.
 
 **Side finding — BIOS IOMMU off (+ BIOS 1.06→1.08) helps prefill only, and grows with context.**
 Decode was completely flat (7.57→7.66 fresh, 12.21→12.20 fp4 @32K — bandwidth unaffected), but
@@ -254,7 +266,7 @@ Q8_0 on the fork (control), ROCmFP4 on the fork (ROCm0), and ROCmFP4 on the fork
 
 | ✅ Advantages                                                        | ❌ Disadvantages                                                       |
 |----------------------------------------------------------------------|------------------------------------------------------------------------|
-| FP4: 1.8× decode at ≤32K (13.7 vs 7.7 t/s), model half the size      | FP4: −1.7% PPL vs Q8_0; decode edge vanishes at 128K (KV-dominated, §7) |
+| FP4: 1.8× decode at ≤32K (13.7 vs 7.7 t/s), model half the size      | FP4: −1.7% PPL vs Q8_0; decode edge narrows at 128K (1.79×→1.52×, KV traffic) |
 | Runs standard GGUFs too — and +5–7% prefill on Q8_0 vs lemonade build | Its GGUFs are **incompatible with everything else** (LM Studio, stock llama.cpp) |
 | Both ROCm0 + Vulkan0 in one build                                     | No releases, no Windows build script — built from source, MSVC 14.44 pin |
 | `_AGENT` presets for tool-calling coherency (claimed)                 | AGENT claim unmeasured; not published for our base model (self-quant from BF16 needed) |
@@ -278,8 +290,10 @@ the fork still offers a Q8 user, in order of realism:
 2. **`Q8_0_ROCMFPX_AGENT`** — 8.25 bpw with allegedly protected tool-calling/JSON tensors. At
    8 bit the headroom over plain Q8_0 is tiny and the claim is unmeasured; for our base model the
    file doesn't exist (would require self-quantizing from a BF16 source). Experiment, not a plan.
-3. **The FP4 lane held in reserve** for short-context interactive use: −1.7% PPL for 1.8× decode
-   (13.7 vs 7.7 t/s) is a fair trade *there* — just not for the 100K+ agent.
+3. **The FP4 lane** for speed-first use: −1.7% PPL buys 1.8× decode at short context and a
+   measured **1.52× raw decode even at 128K** (9.19 vs 6.06 t/s at depth). For the quality-first
+   agent Q8+MTP still wins the trade, but FP4+MTP at 128K is an open speed experiment (see Open
+   questions).
 
 **Production config (§5, Q8_0 + MTP on ROCm 7) is unchanged by all of the above.**
 
@@ -317,6 +331,7 @@ Benchmarks (`scripts\`):
 - `scripts\tune-prefill.ps1` — short-prefill hipBLASLt / micro-batch sweep (done; negative result).
 - `scripts\longctx-prefill.ps1` — prefill throughput curve 4K→128K on Qwen 27B (the real TTFT).
 - `scripts\rocmfpx-ab.ps1` — ROCmFPX fork + ROCmFP4 format vs the production ROCm 7 build + Q8_0 (§8).
+- `scripts\rocmfpx-128k.ps1` — the 128K points: FP4 vs Q8 prefill + true decode-at-depth on the fork (§8).
 
 Results land in `results\`.
 
@@ -325,8 +340,9 @@ Results land in `results\`.
 - Long-context prefill curve (running) → real 128K TTFT number.
 - Pull a TheRock gfx1151 nightly llama.cpp build and re-run the long-ctx curve vs b9910.
 - Stand up lucebox ROCm and A/B **accuracy + TTFT** on real 100K agent traces (not just NIAH).
-- **ROCmFPX (§8):** run `scripts\rocmfpx-ab.ps1 -Full` for the 128K points — does FP4's 1.79×
-  decode edge survive at long context, where the f16 KV cache dominates (§7 says it should not)?
+- **ROCmFPX (§8):** ~~128K points~~ **done** (`scripts\rocmfpx-128k.ps1`): FP4 decode edge
+  narrows to 1.52× but survives. Follow-up worth measuring: **FP4 + MTP at 128K** (llama-cli or
+  server-side, llama-bench can't do MTP) — could beat the production Q8+MTP 9.9 t/s, at −1.7% PPL.
 - **ROCmFPX (§8):** quantize our own `Q8_0_ROCMFPX_AGENT` from a BF16 Qwen3.6-27B source and A/B it
   against Q8_0 on **agent tool-calling quality**, not just t/s — that preset is the only ROCmFPX
   lane that isn't already ruled out by the bandwidth wall.
