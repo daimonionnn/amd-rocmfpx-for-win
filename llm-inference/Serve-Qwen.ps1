@@ -26,13 +26,15 @@
   Use 127.0.0.1 to restrict to this machine only.
 
 .PARAMETER Ctx
-  Context window (prompt + generation). Default 131072 (128K).
-  MEASURED WARNING (2026-07-15): -Ctx 262144 (the model's full native n_ctx_train) DOES start
-  and reports n_ctx=262144, but on this box's current BIOS memory split (~32 GB left to
-  Windows, rest carved out as GPU VRAM) the server's host-side allocations exceed physical
-  RAM and page to disk — decode collapses from ~20 t/s to 2-13 t/s. Use 262144 only after
-  rebalancing the BIOS UMA/VRAM split to leave enough host RAM. Beyond 262144 would
-  additionally need '--rope-scaling yarn'.
+  Context window (prompt + generation). Default 0 = auto by runtime:
+    rocm7 (Q8_0, 27 GB)  -> 204800 (200K). Everything that must stay hot fits the 96 GB VRAM
+                            carve-out (measured full speed up to 229376; 262144 pages to disk
+                            and decode collapses to 2-13 t/s - model+KV outgrow VRAM and the
+                            32 GB host side swaps).
+    rocmfpx (FP4, 16 GB) -> 262144 - the model's FULL native n_ctx_train, measured 23-26 t/s
+                            (15.7 GB weights + ~70 GB KV = ~86 GB, fits VRAM with room).
+  Beyond 262144 would need '--rope-scaling yarn'. See README par."Open questions" for the
+  memory arithmetic and the ROCm allocation-placement bug notes.
 
 .PARAMETER DraftNMax
   MTP max draft tokens. Default 4 (measured best/LM-Studio default).
@@ -58,7 +60,7 @@ param(
     [string]$Runtime = 'rocm7',
     [int]$Port = 8081,
     [string]$ListenAddress = '0.0.0.0',
-    [int]$Ctx = 131072,
+    [int]$Ctx = 0,
     [int]$DraftNMax = 4,
     [string]$ApiKey = '',
     [string]$Model = '',
@@ -91,6 +93,7 @@ switch ($Runtime) {
 
 $Server = Join-Path $BinDir 'llama-server.exe'
 if (-not $Model) { $Model = $defaultModel }
+if ($Ctx -le 0) { $Ctx = if ($Runtime -eq 'rocmfpx') { 262144 } else { 204800 } }
 
 if (-not (Test-Path $Server)) { throw "llama-server.exe not found at $Server  (run $setupHint)" }
 if (-not (Test-Path $Model))  { throw "Model not found:`n  $Model" }

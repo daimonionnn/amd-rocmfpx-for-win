@@ -30,7 +30,7 @@
 param(
     [int]$Port = 8081,
     [string]$ApiKey = '',
-    [int]$Ctx = 131072   # 262144 (native max) thrashes at the current BIOS RAM split - see Serve-Qwen.ps1
+    [int]$Ctx = 204800   # Q8 max-safe at the 96 GB VRAM carve-out (262144 thrashes) - see Serve-Qwen.ps1
 )
 
 $ErrorActionPreference = 'Stop'

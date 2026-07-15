@@ -362,24 +362,31 @@ Results land in `results\`.
   lane that isn't already ruled out by the bandwidth wall.
 - ROCmFPX decode-kernel tuning profiles (`Setup-ROCmFPX.ps1 -Tune rocmfpx-strix-nwarps2` etc.) are
   untested; only `stable` has been built.
-- **Full-native 262K context** (`-Ctx 262144`): starts and reports n_ctx=262144, but at the
-  96 GB UMA BIOS split (~32 GB host RAM left to Windows) the host side pages to disk and decode
-  collapses to 2–13 t/s. **This is a known Strix Halo issue, documented in our sibling project**
-  [multi-gpu-rocm-vulkan-cuda-llm-for-win](https://github.com/daimonionnn/multi-gpu-rocm-vulkan-cuda-llm-for-win)
-  ([doc/bugs.md](https://github.com/daimonionnn/multi-gpu-rocm-vulkan-cuda-llm-for-win/blob/main/doc/bugs.md)),
-  "Bug 2: KV cache spill to shared memory (ROCm + Windows WDDM)": with only 32 GB of OS RAM, GART/paging starves
-  and ROCm falls back to shared-memory paths (historically ~60% worse generation; llama.cpp
-  issues #18011, #18159). **Upstream status (researched 2026-07-15):** the exact allocation bug
-  is [ROCm/ROCm #5940](https://github.com/ROCm/ROCm/issues/5940) (hipMalloc spills to shared past
-  ~32 GB of VRAM use at 96 GB UMA) — closed with an AMD assignee; community reports
-  ([lilting.ch](https://lilting.ch/en/articles/strix-halo-vram-memory-optimization)) say
-  **Adrenalin 26.2.2+ fixes the placement priority**; llama.cpp #18011 was closed as
-  driver-side. This box already runs a 2026-06-28 driver (32.0.31021.5001, 26.6.x era), so
-  today's 262K collapse is not (only) the placement bug — it's arithmetic: Q8 27 GB + ~70 GB KV
-  = 97 GB **doesn't fit the 96 GB carve-out at all**, and the 32 GB host side can't absorb the
-  spill → disk paging. Fix being applied: **BIOS UMA rebalanced to 64 GB RAM / 64 GB VRAM** —
-  spill then lands in GTT backed by ample host RAM instead of the pagefile. Re-measure
-  `-Ctx 262144` after the switch; default stays 128K until then.
+- ~~Full-native 262K context~~ **RESOLVED (2026-07-15) — no BIOS change needed.** The memory
+  arithmetic at the 96 GB UMA split (112 GB GPU-addressable = 96 VRAM + 16 GTT; 32 GB host):
+  everything that the GPU reads every token must fit the 96 GB VRAM carve-out, or it lands in
+  GTT backed by the 32 GB host, fills it, and pages to disk. Measured:
+
+  | Model | Ctx | Hot set | Decode | Verdict |
+  |---|---:|---:|---:|---|
+  | Q8_0 (27 GB) | 204800 | ~80 GB | 19–20 t/s | ✅ full speed |
+  | Q8_0 (27 GB) | 229376 | ~88 GB | 19.5–20.1 t/s | ✅ full speed (max-safe) |
+  | Q8_0 (27 GB) | 262144 | ~97 GB **> 96** | 2–13 t/s | ❌ paging collapse |
+  | **ROCmFP4 (15.7 GB)** | **262144** | ~86 GB | **23–26 t/s** | ✅ **full native ctx works** |
+
+  So: **Q8 tops out at ~224K; the FP4 model runs Qwen's full native 262144** on the current
+  BIOS split. Switching BIOS to 64/64 would *reduce* GPU-addressable memory (64+32=96 GB) and
+  is counterproductive. `Serve-Qwen.ps1` now auto-picks 204800 (rocm7/Q8) or 262144
+  (rocmfpx/FP4). Background on the underlying allocation-placement bug ("shared fills while
+  VRAM is free" — still observable on the 2026-06-28 driver, harmless while the hot set fits
+  VRAM): [ROCm/ROCm #5940](https://github.com/ROCm/ROCm/issues/5940) (closed, AMD assignee),
+  llama.cpp [#18011](https://github.com/ggml-org/llama.cpp/issues/18011)/[#18159](https://github.com/ggml-org/llama.cpp/issues/18159),
+  and our sibling project's write-up:
+  [multi-gpu-rocm-vulkan-cuda-llm-for-win/doc/bugs.md](https://github.com/daimonionnn/multi-gpu-rocm-vulkan-cuda-llm-for-win/blob/main/doc/bugs.md)
+  ("Bug 2: KV cache spill to shared memory"). The
+  [lilting.ch](https://lilting.ch/en/articles/strix-halo-vram-memory-optimization) report that
+  Adrenalin 26.2.2+ fixes placement applies to the **Vulkan** path; the ROCm/HIP path still
+  misplaces — re-check on future driver updates.
 
 
 
