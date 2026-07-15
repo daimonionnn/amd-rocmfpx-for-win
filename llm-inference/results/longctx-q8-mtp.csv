@@ -1,0 +1,5 @@
+ctx_label,mode,prompt_tokens,prefill_tps,decode_tps
+32k,plain,?,NaN,NaN
+32k,mtp,?,NaN,NaN
+128k,plain,?,NaN,NaN
+128k,mtp,?,NaN,NaN

@@ -1,0 +1,50 @@
+At C:\development\ai-tools-for-win\llm-longctx\scripts\longctx-balanced-128k.ps1:39 char:34
++ foreach ($quant in $models.Keys) {
++                                  ~
+Missing closing '}' in statement block or type definition.
+At C:\development\ai-tools-for-win\llm-longctx\scripts\longctx-balanced-128k.ps1:49 char:78
++ ... n[1/2] pp131072 + tg$GenTokens  (r=1 ƒ?" expected ~65-70 min)" -Foreg ...
++                                                                 ~
+Unexpected token ')' in expression or statement.
+At C:\development\ai-tools-for-win\llm-longctx\scripts\longctx-balanced-128k.ps1:51 char:36
++ ... -p','131072','-n',"$GenTokens",'-t',"$Threads",'-r','1','-ub','1024')
++                        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Unexpected token '$GenTokens",'-t',"$Threads",'-r','1','-ub','1024')
+    Write-Host "' in expression or statement.
+At C:\development\ai-tools-for-win\llm-longctx\scripts\longctx-balanced-128k.ps1:51 char:46
++                '-p','131072','-n',"$GenTokens",'-t',"$Threads",'-r',' ...
++                                              ~~~~~~~~
+Unexpected token '",'-t',"' in expression or statement.
+At C:\development\ai-tools-for-win\llm-longctx\scripts\longctx-balanced-128k.ps1:51 char:54
++ ... -p','131072','-n',"$GenTokens",'-t',"$Threads",'-r','1','-ub','1024')
++                                          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Unexpected token '$Threads",'-r','1','-ub','1024')
+    Write-Host "' in expression or statement.
+At C:\development\ai-tools-for-win\llm-longctx\scripts\longctx-balanced-128k.ps1:51 char:62
++ ... -p','131072','-n',"$GenTokens",'-t',"$Threads",'-r','1','-ub','1024')
++                                                  ~~~~~~~~~~~~~~~~~~~~~~~~
+Unexpected token '",'-r','1','-ub','1024')
+    Write-Host "' in expression or statement.
+At C:\development\ai-tools-for-win\llm-longctx\scripts\longctx-balanced-128k.ps1:52 char:33
++     Write-Host "  > llama-bench $($args1 -join ' ')" -ForegroundColor ...
++                                 ~~
+Unexpected token '$(' in expression or statement.
+At C:\development\ai-tools-for-win\llm-longctx\scripts\longctx-balanced-128k.ps1:52 char:52
++ ... -Host "  > llama-bench $($args1 -join ' ')" -ForegroundColor DarkGray
++                                               ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Unexpected token '" -ForegroundColor DarkGray
+    $csv1 = & $bench @args1 -o csv 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "' in expression or statement.
+At C:\development\ai-tools-for-win\llm-longctx\scripts\longctx-balanced-128k.ps1:55 char:23
++         Write-Host "  FAILED (exit $LASTEXITCODE)" -ForegroundColor R ...
++                       ~~~~~~
+Unexpected token 'FAILED' in expression or statement.
+At C:\development\ai-tools-for-win\llm-longctx\scripts\longctx-balanced-128k.ps1:61 char:39
++             Write-Host ("  {0,-20} {1,10:N2} +/- {2,6:N2} t/s" -f $te ...
++                                       ~
+Missing expression after ','.
+Not all parse errors were reported.  Correct the reported errors and try again.
+    + CategoryInfo          : ParserError: (:) [], ParentContainsErrorRecordException
+    + FullyQualifiedErrorId : MissingEndCurlyBrace
+ 

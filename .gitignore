@@ -1,0 +1,12 @@
+# Binaries, downloads, model weights and build trees: large and machine-specific.
+# Reproducible via llm-bench\Setup.ps1 and llm-inference\Setup-ROCmFPX.ps1 / Get-ROCmFPXModel.ps1.
+llm-bench/bin/
+llm-bench/bin-official-b9910/
+llm-bench/dl/
+llm-inference/bin-rocmfpx/
+llm-inference/models/
+llm-inference/src/
+*.gguf
+
+# Downloaded benchmark corpus (rocmfpx-ppl.ps1 fetches it)
+llm-inference/data/

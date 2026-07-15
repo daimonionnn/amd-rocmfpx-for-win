@@ -1,0 +1,3 @@
+=== rocmfpx-ppl run 2026-07-15T01:15:09  chunks=all ===
+Q8_0 : 0.30.626.350 I perplexity: 5.66 seconds per pass - ETA 14.04.256.134 I Final estimate: PPL = 6.9062 +/- 0.04549
+ROCmFP4 : 0.16.175.230 I perplexity: 5.53 seconds per pass - ETA 13.53.848.710 I Final estimate: PPL = 7.0218 +/- 0.04638
