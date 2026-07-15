@@ -26,15 +26,15 @@
   Use 127.0.0.1 to restrict to this machine only.
 
 .PARAMETER Ctx
-  Context window (prompt + generation). Default 0 = auto by runtime:
-    rocm7 (Q8_0, 27 GB)  -> 204800 (200K). Everything that must stay hot fits the 96 GB VRAM
-                            carve-out (measured full speed up to 229376; 262144 pages to disk
-                            and decode collapses to 2-13 t/s - model+KV outgrow VRAM and the
-                            32 GB host side swaps).
-    rocmfpx (FP4, 16 GB) -> 262144 - the model's FULL native n_ctx_train, measured 23-26 t/s
-                            (15.7 GB weights + ~70 GB KV = ~86 GB, fits VRAM with room).
-  Beyond 262144 would need '--rope-scaling yarn'. See README par."Open questions" for the
-  memory arithmetic and the ROCm allocation-placement bug notes.
+  Context window (prompt + generation). Default 0 = auto:
+    rocmfpx (FP4, 16 GB)  -> 262144 (full native n_ctx_train), ~23-26 t/s, fits either BIOS split.
+    rocm7   (Q8_0, 27 GB) -> depends on the BIOS RAM/VRAM split, detected via host RAM:
+        64/64 split (>=56 GB host visible) -> 262144. Measured: fresh 19-20 t/s, genuine 135K
+              deep fill 13.4 t/s, no swap (the extra host RAM absorbs the driver's KV misplacement).
+        96/32 split (~32 GB host)          -> 204800. At 262144 the hot set + misplaced KV blow
+              past the 32 GB host and page to disk -> decode collapses to 2-13 t/s.
+  Beyond 262144 would need '--rope-scaling yarn'. See README "Open questions" for the memory
+  arithmetic, the split comparison, and the ROCm allocation-placement bug.
 
 .PARAMETER DraftNMax
   MTP max draft tokens. Default 4 (measured best/LM-Studio default).
@@ -93,7 +93,16 @@ switch ($Runtime) {
 
 $Server = Join-Path $BinDir 'llama-server.exe'
 if (-not $Model) { $Model = $defaultModel }
-if ($Ctx -le 0) { $Ctx = if ($Runtime -eq 'rocmfpx') { 262144 } else { 204800 } }
+if ($Ctx -le 0) {
+    if ($Runtime -eq 'rocmfpx') {
+        $Ctx = 262144   # FP4 (~16 GB) fits full native ctx on either BIOS split
+    } else {
+        # Q8 (27 GB) at full 262144 needs the extra host RAM of a 64/64 BIOS split; on 96/32 it
+        # pages to disk past ~224K. Detect the split by host RAM (~64 GB visible = 64/64 split).
+        $hostGB = [math]::Round((Get-CimInstance Win32_OperatingSystem).TotalVisibleMemorySize / 1MB)
+        $Ctx = if ($hostGB -ge 56) { 262144 } else { 204800 }
+    }
+}
 
 if (-not (Test-Path $Server)) { throw "llama-server.exe not found at $Server  (run $setupHint)" }
 if (-not (Test-Path $Model))  { throw "Model not found:`n  $Model" }

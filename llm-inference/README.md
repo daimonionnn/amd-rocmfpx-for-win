@@ -378,17 +378,27 @@ Results land in `results\`.
   deep fill was untested and risky, since ~half the KV misplaces to the 32 GB host).
   `Serve-Qwen.ps1` auto-picks 204800 (rocm7/Q8) or 262144 (rocmfpx/FP4).
 
-  **64/64 split re-test (2026-07-15) — counterintuitive but measured better for deep context.**
+  **64/64 split re-test (2026-07-15) — the better split for deep context, both models.**
   Switching BIOS to 64 GB RAM / 64 GB VRAM *lowers* nominal GPU-addressable memory (64+32=96 vs
-  96+16=112 GB), but because the ROCm driver misplaces ~half the KV to host anyway (see below),
-  what actually gates deep context is **host RAM**, and 64/64 doubles it (32→64 GB). Measured,
-  FP4 @262K: after a 35K prefill, host free **36.8 GB vs 5.0 GB** at 96/32 (placement identical,
-  prefill 261 t/s identical — the split doesn't touch the driver bug, only the headroom). A
-  **fully-filled 135K context decoded at 15.6 t/s with no collapse and 35 GB host still free** —
-  vs the 96/32 split where Q8@262K collapsed to 2–13 t/s. Verdict: **for KV-heavy 128K+ work,
-  64/64 is the safer split** despite the smaller nominal GPU pool; 96/32 only wins if you need
-  the model itself to exceed ~96 GB (not the case here). Full 262144 fill still unverified on
-  either split. Background on the underlying allocation-placement bug ("shared fills while
+  96+16=112 GB), but because the ROCm driver misplaces ~half the KV to host regardless of split
+  (see below), what actually gates deep context is **host RAM** — and 64/64 doubles it (32→64 GB).
+  Both models set to full n_ctx 262144, measured on 64/64:
+
+  | Model | Fresh decode | 135K deep-fill: prefill / decode | host free after 135K |
+  |---|---:|---:|---:|
+  | Q8_0 (27 GB) | 19–20 t/s | 144.6 t/s / **13.4 t/s** | 25.3 GB |
+  | ROCmFP4 (15.7 GB) | 23–26 t/s | (cached) / **15.6 t/s** | 35.3 GB |
+
+  The headline: **Q8_0 at 262144 — which collapsed to 2–13 t/s at 96/32 — runs cleanly at 64/64**,
+  including a *genuine* 135K deep fill (prefill 144.6 t/s, decode 13.4 t/s, 25 GB host to spare).
+  So you do **not** need the FP4 model to get Qwen's full native context; Q8 quality works too.
+  FP4's 135K decode was cache-assisted on prefill but its 15.6 t/s decode is real. Verdict:
+  **for KV-heavy 128K+ work use the 64/64 split** — it's counterintuitively better despite the
+  smaller nominal GPU pool, because host RAM is the true bottleneck once the driver misplaces KV.
+  96/32 only wins if the *model itself* needs >96 GB (not the case here). A fully-filled 262144
+  (vs the 135K validated here) is still unmeasured but, with 25–35 GB host free at 135K, likely
+  fits. `Serve-Qwen.ps1` auto-picks the context: FP4 always 262144; Q8 detects the BIOS split by
+  host RAM (≥56 GB visible → 64/64 → 262144, else → 204800). Background on the underlying allocation-placement bug ("shared fills while
   VRAM is free" — still observable on the 2026-06-28 driver, harmless while the hot set fits
   VRAM): [ROCm/ROCm #5940](https://github.com/ROCm/ROCm/issues/5940) (closed, AMD assignee),
   llama.cpp [#18011](https://github.com/ggml-org/llama.cpp/issues/18011)/[#18159](https://github.com/ggml-org/llama.cpp/issues/18159),
