@@ -303,10 +303,10 @@ the fork still offers a Q8 user, in order of realism:
 2. **`Q8_0_ROCMFPX_AGENT`** — 8.25 bpw with allegedly protected tool-calling/JSON tensors. At
    8 bit the headroom over plain Q8_0 is tiny and the claim is unmeasured; for our base model the
    file doesn't exist (would require self-quantizing from a BF16 source). Experiment, not a plan.
-3. **The FP4 lane** for speed-first use: −1.7% PPL buys 1.8× decode at short context and a
-   measured **1.52× raw decode even at 128K** (9.19 vs 6.06 t/s at depth). For the quality-first
-   agent Q8+MTP still wins the trade, but FP4+MTP at 128K is an open speed experiment (see Open
-   questions).
+3. **The FP4 lane** for speed-first use: −1.7% PPL buys 1.8× decode at short context, 1.52× raw
+   decode at 128K, and **with MTP the fastest measured 128K decode on this box (16.6 vs 13.5 t/s,
+   +23% over production)**. The quality-first agent default stays Q8+MTP until FP4 is validated
+   on real Hermes traces.
 
 **Production config (§5, Q8_0 + MTP on ROCm 7) is unchanged by all of the above.**
 
