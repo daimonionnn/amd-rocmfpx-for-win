@@ -363,10 +363,17 @@ Results land in `results\`.
 - ROCmFPX decode-kernel tuning profiles (`Setup-ROCmFPX.ps1 -Tune rocmfpx-strix-nwarps2` etc.) are
   untested; only `stable` has been built.
 - **Full-native 262K context** (`-Ctx 262144`): starts and reports n_ctx=262144, but at the
-  current BIOS memory split (~32 GB host RAM, rest GPU carve-out) the host side pages to disk and
-  decode collapses to 2–13 t/s. To unlock it, rebalance the BIOS UMA/dedicated-VRAM split (this
-  is where the earlier "does the 64/96 GB split matter" question returns — it matters exactly
-  when KV + host buffers outgrow what's left to Windows) and re-measure. Default stays 128K.
+  96 GB UMA BIOS split (~32 GB host RAM left to Windows) the host side pages to disk and decode
+  collapses to 2–13 t/s. **This is a known, previously-documented Strix Halo issue** — see the
+  sibling project `multi-gpu-rocm-vulkan-cuda-llm-for-win\doc\rocm-bugs.md`, "Bug 2: KV cache
+  spill to shared memory (ROCm + Windows WDDM)": with only 32 GB of OS RAM, GART/paging starves
+  and ROCm falls back to shared-memory paths (historically ~60% worse generation; llama.cpp
+  issues #18011, #18159). It appeared fixed on the 2026-05 driver stack, but today's measurement
+  shows it's back — plausibly because the machine recently moved from AMD PRO drivers to regular
+  Adrenalin. Workaround being applied: **BIOS UMA rebalanced to 64 GB RAM / 64 GB VRAM**;
+  re-measure `-Ctx 262144` after the switch (note: Q8 model 27 GB + ~70 GB KV won't fit the
+  64 GB dedicated carve-out — it will rely on GTT, which is exactly what the healthier OS-RAM
+  budget should make viable). Default stays 128K until then.
 
 
 
