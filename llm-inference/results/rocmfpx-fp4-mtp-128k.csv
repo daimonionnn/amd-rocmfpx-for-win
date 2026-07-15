@@ -1,0 +1,3 @@
+config,prompt_tokens,prefill_tps,decode_tps,run_time
+fp4-fork-mtp,~137k,148.1,16.6,2026-07-15 15:32:01
+q8-lemonade-mtp,~137k,144.2,13.5,2026-07-15 15:32:01

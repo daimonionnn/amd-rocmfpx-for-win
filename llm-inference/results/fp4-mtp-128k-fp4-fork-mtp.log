@@ -1,0 +1,58 @@
+
+Loading model... 
+
+
+▄▄ ▄▄
+██ ██
+██ ██  ▀▀█▄ ███▄███▄  ▀▀█▄    ▄████ ████▄ ████▄
+██ ██ ▄█▀██ ██ ██ ██ ▄█▀██    ██    ██ ██ ██ ██
+██ ██ ▀█▄██ ██ ██ ██ ▀█▄██ ██ ▀████ ████▀ ████▀
+                                    ██    ██
+                                    ▀▀    ▀▀
+
+build      : b1-6bf20cd
+model      : Qwen3.6-27B-MTP-ROCmFP4-STRIX-imatrix-embF16-headQ6.gguf
+modalities : text
+
+available commands:
+  /exit or Ctrl+C     stop or exit
+  /regen              regenerate the last response
+  /clear              clear the chat history
+  /read <file>        add a text file
+  /glob <pattern>     add text files using globbing pattern
+
+
+>  
+ = Valkyria Chronicles III = 
+ 
+ Senjō no Valkyria 3 : Unrecorded Chronicles ( Japanese : 戦場のヴァルキュリア3 , lit . Valkyria of the Battlefield 3 ) , commonly referred to as Valkyria Chronicles III outside Japan , is a tactical role @-@ playing video game developed by Sega and Media.Vision for the PlayStation Portable . Released in January 2011 in Japan , it is the third game in the Valkyria series . Employing the same fusion of tactical and real @-@ time gameplay as its predece ... (truncated)
+
+[Start thinking]
+Here's a thinking process:
+
+1.  **Analyze User Input:**
+   - The user has provided a very long text containing multiple Wikipedia-style articles concatenated together.
+   - The topics covered include:
+     - Valkyria Chronicles III (video game)
+     - Tower Building of the Little Rock Arsenal (historical building)
+     - Cicely Mary Barker (illustrator)
+     - Gambia women's national football team
+     - Plain maskray (fish species)
+     - 2011–12 Columbus Blue Jackets season (hockey)
+     - Gregorian Tower (Vatican)
+     - "There's Got to Be a Way" (Mariah Carey song)
+     - Nebraska Highway 88
+     - USS Atlanta (1861)
+     - Jacqueline Fernandez (actress)
+     - John Cullen (ice hockey player)
+     - SMS Erzherzog Ferdinand Max (battleship)
+     - Ancient Egyptian deities
+     - South of Heaven (Slayer album)
+     - General aviation in the United Kingdom
+     - SMS Zrínyi (battleship)
+     - Geopyxis carbonaria (fungus)
+     - Gold
+
+[ Prompt: 148.1 t/s | Generation: 16.6 t/s ]
+
+Exiting...

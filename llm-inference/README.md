@@ -229,11 +229,24 @@ Three findings: (1) **prefill is perfectly quant-independent at 128K** (155.9 �
 fork keeps a small prefill edge over lemonade even here (156 vs 152). (2) **FP4's decode edge
 narrows but does NOT vanish: 1.79× short → 1.52× @128K.** §7's full Q4=Q8 convergence (both
 9.9 t/s) was measured *with MTP* — in raw decode the KV traffic only eats part of the weight
-advantage. (3) The intriguing corollary: FP4's raw 9.19 t/s is already near the production
-Q8+MTP 9.9 t/s — **FP4+MTP could plausibly be the fastest 128K decode on this box** (unmeasured;
-the fork's MTP path is slower per §above, so not a given). It would still cost −1.7% PPL →
-**the production Q8_0 config in §5 stands on quality grounds**, but FP4+MTP is now a legitimate
-speed-first option to measure rather than a ruled-out one.
+advantage. (3) That raised the question the next test answers.
+
+**FP4+MTP vs the production config at 128K — measured (`scripts\rocmfpx-fp4-mtp-128k.ps1`,
+llama-cli draft-mtp n-max 4, identical ~137K-token wikitext-prose prompt):**
+
+| Config @~137K prompt       | Prefill t/s | Decode t/s | vs raw (no MTP) |
+|----------------------------|------------:|-----------:|:---------------:|
+| **FP4 + MTP, fork**        |       148.1 |   **16.6** | 1.81×           |
+| Q8_0 + MTP, lemonade (§5+) |       144.2 |       13.5 | 2.23×           |
+
+**FP4+MTP is the fastest 128K decode measured on this box: 16.6 t/s, +23% over the production
+Q8+MTP.** (Q8's 13.5 here vs §5's 9.9: this run uses Q8_0 26.6 GiB, §5 used Q8_K_XL 33.3 GiB —
+the bandwidth rule — plus wikitext prose accepts drafts better than War & Peace did.) The fork's
+MTP path, sluggish at short context, does fine at 128K depth (1.81× over raw). The price is
+unchanged: **−1.7% PPL and unvalidated tool-calling quality** → the quality-first production
+default in §5 stands, but for speed-first 128K work, `Serve-Qwen.ps1 -Runtime rocmfpx` with the
+FP4 model is now the measured best option. Before trusting it for the Hermes agent, validate on
+real agent traces, not perplexity.
 
 **Side finding — BIOS IOMMU off (+ BIOS 1.06→1.08) helps prefill only, and grows with context.**
 Decode was completely flat (7.57→7.66 fresh, 12.21→12.20 fp4 @32K — bandwidth unaffected), but
@@ -340,9 +353,10 @@ Results land in `results\`.
 - Long-context prefill curve (running) → real 128K TTFT number.
 - Pull a TheRock gfx1151 nightly llama.cpp build and re-run the long-ctx curve vs b9910.
 - Stand up lucebox ROCm and A/B **accuracy + TTFT** on real 100K agent traces (not just NIAH).
-- **ROCmFPX (§8):** ~~128K points~~ **done** (`scripts\rocmfpx-128k.ps1`): FP4 decode edge
-  narrows to 1.52× but survives. Follow-up worth measuring: **FP4 + MTP at 128K** (llama-cli or
-  server-side, llama-bench can't do MTP) — could beat the production Q8+MTP 9.9 t/s, at −1.7% PPL.
+- **ROCmFPX (§8):** ~~128K points~~ **done**: FP4 decode edge narrows to 1.52× but survives;
+  ~~FP4+MTP at 128K~~ **done** — **16.6 t/s, +23% over production Q8+MTP (13.5)** → fastest
+  measured 128K decode. Remaining: validate FP4 on **real Hermes agent traces** (tool-calling
+  quality, not PPL) before considering it for the agent.
 - **ROCmFPX (§8):** quantize our own `Q8_0_ROCMFPX_AGENT` from a BF16 Qwen3.6-27B source and A/B it
   against Q8_0 on **agent tool-calling quality**, not just t/s — that preset is the only ROCmFPX
   lane that isn't already ruled out by the bandwidth wall.

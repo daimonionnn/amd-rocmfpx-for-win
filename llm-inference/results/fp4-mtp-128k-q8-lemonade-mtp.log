@@ -1,0 +1,68 @@
+
+
+Loading model... 
+
+▄▄ ▄▄
+██ ██
+██ ██  ▀▀█▄ ███▄███▄  ▀▀█▄    ▄████ ████▄ ████▄
+██ ██ ▄█▀██ ██ ██ ██ ▄█▀██    ██    ██ ██ ██ ██
+██ ██ ▀█▄██ ██ ██ ██ ▀█▄██ ██ ▀████ ████▀ ████▀
+                                    ██    ██
+                                    ▀▀    ▀▀
+
+build      : b1-049326a
+model      : C:\Users\matt\.lmstudio\models\unsloth\Qwen3.6-27B-MTP-GGUF\Qwen3.6-27B-Q8_0.gguf
+ftype      : Q8_0
+modalities : text
+
+available commands:
+  /exit or Ctrl+C     stop or exit
+  /regen              regenerate the last response
+  /clear              clear the chat history
+  /read <file>        add a text file
+  /glob <pattern>     add text files using globbing pattern
+
+
+
+>  
+ = Valkyria Chronicles III = 
+ 
+ Senjō no Valkyria 3 : Unrecorded Chronicles ( Japanese : 戦場のヴァルキュリア3 , lit . Valkyria of the Battlefield 3 ) , commonly referred to as Valkyria Chronicles III outside Japan , is a tactical role @-@ playing video game developed by Sega and Media.Vision for the PlayStation Portable . Released in January 2011 in Japan , it is the third game in the Valkyria series . Employing the same fusion of tactical and real @-@ time gameplay as its predece ... (truncated)
+
+[Start thinking]
+
+Here's a thinking process:
+
+1.  **Analyze User Input:**
+   - The user has provided a very long text containing multiple Wikipedia-style articles concatenated together.
+   - The topics covered include:
+     - Valkyria Chronicles III
+     - Tower Building of the Little Rock Arsenal
+     - Cicely Mary Barker
+     - Gambia women's national football team
+     - Plain maskray
+     - 2011–12 Columbus Blue Jackets season
+     - Gregorian Tower
+     - There's Got to Be a Way (Mariah Carey song)
+     - Nebraska Highway 88
+     - USS Atlanta (1861)
+     - Jacqueline Fernandez
+     - John Cullen
+     - SMS Erzherzog Ferdinand Max
+     - Ancient Egyptian deities
+     - South of Heaven (Slayer album)
+     - General aviation in the United Kingdom
+     - SMS Zrínyi
+     - Geopyxis carbonaria
+     - Gold dollar
+     - Johnson–Corey–Chaykovsky reaction
+     - Treaty of Ciudad Juárez
+     - The Feast of the Goat (novel)
+     - Charles Eaton (RAAF officer)
+     - Tina Fey
+    
+
+[ Prompt: 144.2 t/s | Generation: 13.5 t/s ]
+
+
+Exiting...
