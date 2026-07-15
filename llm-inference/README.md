@@ -364,9 +364,10 @@ Results land in `results\`.
   untested; only `stable` has been built.
 - **Full-native 262K context** (`-Ctx 262144`): starts and reports n_ctx=262144, but at the
   96 GB UMA BIOS split (~32 GB host RAM left to Windows) the host side pages to disk and decode
-  collapses to 2–13 t/s. **This is a known, previously-documented Strix Halo issue** — see the
-  sibling project `multi-gpu-rocm-vulkan-cuda-llm-for-win\doc\rocm-bugs.md`, "Bug 2: KV cache
-  spill to shared memory (ROCm + Windows WDDM)": with only 32 GB of OS RAM, GART/paging starves
+  collapses to 2–13 t/s. **This is a known Strix Halo issue, documented in our sibling project**
+  [multi-gpu-rocm-vulkan-cuda-llm-for-win](https://github.com/daimonionnn/multi-gpu-rocm-vulkan-cuda-llm-for-win)
+  ([doc/bugs.md](https://github.com/daimonionnn/multi-gpu-rocm-vulkan-cuda-llm-for-win/blob/main/doc/bugs.md)),
+  "Bug 2: KV cache spill to shared memory (ROCm + Windows WDDM)": with only 32 GB of OS RAM, GART/paging starves
   and ROCm falls back to shared-memory paths (historically ~60% worse generation; llama.cpp
   issues #18011, #18159). It appeared fixed on the 2026-05 driver stack, but today's measurement
   shows it's back — plausibly because the machine recently moved from AMD PRO drivers to regular
