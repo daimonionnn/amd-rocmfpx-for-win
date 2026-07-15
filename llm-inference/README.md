@@ -388,5 +388,14 @@ Results land in `results\`.
   Adrenalin 26.2.2+ fixes placement applies to the **Vulkan** path; the ROCm/HIP path still
   misplaces — re-check on future driver updates.
 
+  **Measured placement detail (35K-token prefill probe, FP4 @262K server):** of ~9 GB of new KV
+  pages, only +1.5 GB landed in dedicated and +1.9 GB in shared (with 57 GB of VRAM free), rest
+  host-committed — i.e. the misplacement happens *during* inference too. On this APU that is
+  performance-neutral (same physical LPDDR5X, prefill 263 t/s healthy); the only cliff is host
+  RAM exhaustion → pagefile. Caveat that follows: FP4's "full 262144 works" was validated to
+  ~35K fill + a 128K-depth bench pass; a *fully filled* 200K+ context could still push the
+  host-backed share past 32 GB — unverified. If a deep fill ever collapses, the driver placement
+  bug is the culprit, not capacity.
+
 
 
