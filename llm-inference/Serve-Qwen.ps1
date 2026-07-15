@@ -26,9 +26,10 @@
   Use 127.0.0.1 to restrict to this machine only.
 
 .PARAMETER Ctx
-  Context window (prompt + generation). Default 131072 (128K). If your agent sends
-  longer prompts, raise this; going beyond the model's native length may need
-  '--rope-scaling yarn'. Bigger Ctx pre-allocates more KV cache (RAM is plentiful here).
+  Context window (prompt + generation). Default 262144 = Qwen3.6-27B's full native
+  training length (n_ctx_train; no rope scaling needed). Costs ~70 GB of f16 KV cache
+  pre-allocation at this size — fine on this 128 GB box (~97 GB total with the Q8 model),
+  lower it on smaller machines. Going beyond 262144 would need '--rope-scaling yarn'.
 
 .PARAMETER DraftNMax
   MTP max draft tokens. Default 4 (measured best/LM-Studio default).
@@ -54,7 +55,7 @@ param(
     [string]$Runtime = 'rocm7',
     [int]$Port = 8081,
     [string]$ListenAddress = '0.0.0.0',
-    [int]$Ctx = 131072,
+    [int]$Ctx = 262144,
     [int]$DraftNMax = 4,
     [string]$ApiKey = '',
     [string]$Model = '',
