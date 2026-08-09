@@ -1,4 +1,4 @@
-# ROCmFPX for Windows — for the win 🏆
+# AMD ROCmFPX for Windows 🏆
 
 Native **Windows** tooling for fast local LLM inference on **AMD Strix Halo** (Ryzen AI MAX,
 gfx1151) — and the only Windows build of the [ROCmFPX](https://github.com/charlie12345/ROCmFPX)
@@ -37,6 +37,9 @@ Other load-bearing findings (measured, details in [llm-inference/README.md](llm-
   traffic) → run **Q8 + MTP** for quality at no long-context speed cost.
 - **ROCmFP4** (the fork's 4-bit format): decode 1.79× ≈ exactly its size ratio, −1.7% perplexity
   vs Q8 — a smaller model, not a faster format; its niche is short-context interactive use.
+- **Third-party ROCmFPX "quality" quants don't change this** — the ciru-ai ROCmFP6 STRIX QUALITY
+  release (reviewed 2026-08-09) is slower than our config where the numbers are comparable, caps
+  at 64K, and its quality edge is inside the noise of its own eval. **Production stays Q8.**
 
 ## ⚠️ If you own a Strix Halo machine: disable IOMMU in BIOS
 

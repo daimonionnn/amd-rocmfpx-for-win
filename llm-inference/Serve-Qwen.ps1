@@ -5,7 +5,7 @@
 
 .DESCRIPTION
   This is the "final recommended config" from .\README.md:
-    ROCm 7 build + Qwen3.6-27B-Q8_K_XL + MTP (draft-mtp, n-max 4) + f16 KV.
+    ROCm 7 build + Qwen3.6-27B-Q8_K_XL + MTP (draft-mtp, n-max 6) + f16 KV.
   Point your Hermes agent (on another PC) at:  http://<this-PC-LAN-IP>:<Port>/v1
 
 .PARAMETER Runtime
@@ -37,7 +37,10 @@
   arithmetic, the split comparison, and the ROCm allocation-placement bug.
 
 .PARAMETER DraftNMax
-  MTP max draft tokens. Default 4 (measured best/LM-Studio default).
+  MTP max draft tokens. Default 6 (measured, scripts\mtp-nmax-sweep.ps1): +2.8% decode over the
+  old default of 4 at 32K and +7% on a fresh 2K prompt, prefill unaffected. n-max 8 is another
+  +0.5% at 32K but loses at short context, so 6 is the compromise. Leave --spec-draft-p-min at
+  llama.cpp's 0.00 default; LM Studio's 0.75 costs 4-15% decode.
 
 .PARAMETER ApiKey
   Optional API key. If set, clients must send 'Authorization: Bearer <key>'.
@@ -61,7 +64,7 @@ param(
     [int]$Port = 8081,
     [string]$ListenAddress = '0.0.0.0',
     [int]$Ctx = 0,
-    [int]$DraftNMax = 4,
+    [int]$DraftNMax = 6,
     [string]$ApiKey = '',
     [string]$Model = '',
     [string]$Device = 'ROCm0'

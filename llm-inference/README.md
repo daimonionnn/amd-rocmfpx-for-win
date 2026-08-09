@@ -260,10 +260,48 @@ TTFT numbers elsewhere in this README predate the change and read conservative.
 (IOMMU / AMD-Vi under chipset/advanced settings); on Linux either BIOS or the `amd_iommu=off`
 kernel parameter (GRUB).
 
+**Cross-check: the ciru-ai "ROCmFP6 STRIX QUALITY" release (reviewed 2026-08-09).**
+[jcbtc/Chadrockv2-Qwen3.6-27B-ROCmFP6-STRIX-QUALITY](https://huggingface.co/jcbtc/Chadrockv2-Qwen3.6-27B-ROCmFP6-STRIX-QUALITY)
+is the first ROCmFPX quant of *our* base model that keeps MTP heads (23.5 GiB, 7.37 bpw:
+`Q6_0_ROCMFPX` default + `Q8_0_ROCMFPX` on embed/output/attention/selected FFN). It needs a
+different fork than the one we build ([ciru-ai/ROCmFPX](https://github.com/ciru-ai/ROCmFPX),
+branch `rocmfp6-strix-quality`), so we did not run it. **Verdict: no miracle — we stay on Q8.**
+Their published numbers, against ours:
+
+- **Their speed table is served end-to-end, not engine-internal, and single-run.** Prefill
+  *rises* 178 → 188 → 214 → 224 t/s from 512 to 16K prompt tokens — the reverse of the real
+  O(S²) curve, i.e. fixed per-request overhead dominates their short rows. Decode goes
+  29.5 → 20.6 → 30.7 t/s over 512/2048/4096, in both their columns, so it tracks per-prompt
+  draft acceptance, not context. Our numbers are `-r 3` and engine-internal; the two are not
+  directly comparable below ~64K.
+- **Where it is comparable we are ahead:** their 65536 prefill 171.1 t/s vs our 214.5 @64K
+  (and 152–156 @128K, which they never tested — their profile caps at `-c 65536`). Most of that
+  gap is plausibly IOMMU, which nobody disables on Linux by default (see below).
+- **At the depth we care about their format buys nothing**, as §7's KV-dominance predicts:
+  15.72 t/s @64K on a 23.5 GiB file vs our Q8_0 (27 GB) at 13.4 t/s on a *genuine 135K* fill.
+- **The quality claim is inside the noise of their own data:** HermesAgent-20 14/20 vs 13/20
+  base and 11/20 vs 11/20 plus (n=20); HumanEval+ 155 vs 153 of 164; and their PPL is *worse*
+  than the Q6 baseline (6.5543 vs 6.5296).
+- **What is genuinely useful:** their old 4.82-bpw "Strix Speed" recipe scored 0.60 vs Q6's 0.76
+  on HermesAgent-20 while having *better* perplexity (6.4077 vs 6.5296). That is independent
+  confirmation of this README's standing caveat — **PPL does not measure tool-calling
+  discipline** — and it is why our FP4 lane stays out of the Hermes agent.
+- **The one knob worth stealing — tested, and it does NOT explain their numbers.** Their profile
+  drafts deeper than ours (`--spec-draft-n-max 6`) and their decode·GiB product (~693) sits ~25%
+  above our best measured MTP point. `scripts\mtp-nmax-sweep.ps1` on our own Q8_0 (see §9) found
+  deeper drafting is worth only **+2.8%**. That closes the last difference between the two
+  profiles — their `--spec-draft-p-min 0.0` is a no-op, since it is already llama.cpp's default —
+  so the remaining ~25% is not a knob and not the format. Their own table gives the likelier
+  answer: it spreads 20.64 → 30.73 t/s on the *same* model. Take their 2048 row (20.64) against
+  our 32K (20.10) and it is parity — on a file 13% smaller than ours. **No format advantage,
+  exactly as the bandwidth rule predicts.**
+
 The genuinely interesting lane for this box is `Q8_0_ROCMFPX_AGENT` — 8-bit (so no quality
 give-up) with a preset that claims to protect tool-calling/JSON coherency, which is exactly the
-Hermes workload. **Availability check (2026-07-15):** for vanilla Qwen3.6-27B there is NO
-published AGENT quant. Q6/Q8 ROCmFPX for the vanilla base do exist
+Hermes workload. **Availability re-check (2026-08-09, unchanged since 2026-07-15):** for vanilla
+Qwen3.6-27B there is still NO published AGENT quant. `Q8_0_ROCMFPX_AGENT` files do exist, but only
+on other bases — [Qwopus3.6-27B-Coder-MTP-ROCmFPX](https://huggingface.co/philtheriver/Qwopus3.6-27B-Coder-MTP-ROCmFPX)
+(29.9 GB, with MTP) and a 9B Qwythos build. Q6/Q8 ROCmFPX for the vanilla base do exist
 (`philtheriver/Qwen3.6-27B-ROCmFPX`: Q6 24 GB, Q8 29.4 GB; `1337Hero/...Q8_0-ROCMFPX`) — but
 **without MTP heads**, which disqualifies them here: by the bandwidth rule they'd decode at
 ~8.3 / ~6.7 t/s vs our Q8_0+MTP ~17.5 t/s — a 2× regression for at best a marginal format gain.
@@ -310,6 +348,34 @@ the fork still offers a Q8 user, in order of realism:
 
 **Production config (§5, Q8_0 + MTP on ROCm 7) is unchanged by all of the above.**
 
+### 9. MTP draft depth — small free win, and it settles the ciru question (measured)
+
+`scripts\mtp-nmax-sweep.ps1`, production Q8_0 (26.6 GB) on the lemonade ROCm 7 build, llama-cli,
+temp 0, seed 123, same wikitext prose prompt, `-n 256`. Decode at temp 0 turned out to be
+essentially **deterministic** (three reps at 32K spread ≤0.1 t/s), so these gaps are real, not noise:
+
+| `n-max` / `p-min`      | decode @2K | decode @32K (median of 3) | prefill @32K |
+|------------------------|-----------:|--------------------------:|-------------:|
+| 4 / 0.00 — *old default* |      20.0 |                     19.60 |        ~246  |
+| **6 / 0.00 — new default** | **21.4** |                 **20.10** |        ~246  |
+| 8 / 0.00               |       20.7 |                 **20.30** |        ~247  |
+| 6 / 0.75 — *LM Studio* |       18.1 |                     19.40 |        ~247  |
+
+1. **Deeper drafting is worth ~+3%, and it saturates.** n-max 6 gives +7% at 2K and +2.8% at 32K
+   over our old 4. n-max 8 adds another +0.5% at 32K but *loses* at short context (20.7 vs 21.4),
+   so **6 is the compromise** — now the `Serve-Qwen.ps1` default. Prefill is untouched either way.
+2. **`--spec-draft-p-min` should stay at the default.** llama.cpp's default is already 0.00, so
+   the ciru profile's explicit `0.0` changes nothing versus what we ran. Going the *other* way
+   costs real throughput: LM Studio's 0.75 gate is −15% at 2K and −4% at 32K. (This is the one
+   knob where we were already ahead of LM Studio — see the head-to-head below, where we measured
+   parity overall.)
+3. **It does not explain the ciru release.** +2.8% against a ~25% claimed gap. See §8.
+
+Raw data: `results\mtp-nmax-sweep.csv` (single pass, both contexts) and
+`results\mtp-nmax-confirm-32k.csv` (3 reps at 32K). Caveat: measured on prose with llama-cli;
+a real agent trace (tool calls, structured output) drafts differently, so treat +3% as the
+prose-side estimate, not a guarantee for Hermes.
+
 ## Head-to-head vs LM Studio (same model Q8_0 MTP) — full parity
 
 `scripts\compare-prefill-vs-lmstudio.ps1` + `compare-decode-vs-lmstudio.ps1`. Our ROCm 7
@@ -345,6 +411,7 @@ Benchmarks (`scripts\`):
 - `scripts\longctx-prefill.ps1` — prefill throughput curve 4K→128K on Qwen 27B (the real TTFT).
 - `scripts\rocmfpx-ab.ps1` — ROCmFPX fork + ROCmFP4 format vs the production ROCm 7 build + Q8_0 (§8).
 - `scripts\rocmfpx-128k.ps1` — the 128K points: FP4 vs Q8 prefill + true decode-at-depth on the fork (§8).
+- `scripts\mtp-nmax-sweep.ps1` — MTP draft-depth sweep (`n-max` 4/6/8, `p-min`) on production Q8_0 (§8).
 
 Results land in `results\`.
 
@@ -357,9 +424,15 @@ Results land in `results\`.
   ~~FP4+MTP at 128K~~ **done** — **16.6 t/s, +23% over production Q8+MTP (13.5)** → fastest
   measured 128K decode. Remaining: validate FP4 on **real Hermes agent traces** (tool-calling
   quality, not PPL) before considering it for the agent.
+- ~~**MTP draft depth (from the ciru cross-check, §8)**~~ **DONE (2026-08-10, §9)** — n-max 4→6 is
+  +2.8% decode at 32K, +7% at 2K; `Serve-Qwen.ps1` default moved to 6. It does *not* account for
+  the ciru release's claimed margin. Remaining: re-measure on a **real Hermes agent trace** rather
+  than prose, where draft acceptance behaves differently.
 - **ROCmFPX (§8):** quantize our own `Q8_0_ROCMFPX_AGENT` from a BF16 Qwen3.6-27B source and A/B it
   against Q8_0 on **agent tool-calling quality**, not just t/s — that preset is the only ROCmFPX
-  lane that isn't already ruled out by the bandwidth wall.
+  lane that isn't already ruled out by the bandwidth wall, and the 2026-08-09 re-check confirms
+  nobody has published one for our base. The BF16 source is already local
+  (`unsloth\Qwen3.6-27B-MTP-GGUF\Qwen3.6-27B-BF16-0000{1,2}-of-00002.gguf`, 54 GB).
 - ROCmFPX decode-kernel tuning profiles (`Setup-ROCmFPX.ps1 -Tune rocmfpx-strix-nwarps2` etc.) are
   untested; only `stable` has been built.
 - ~~Full-native 262K context~~ **RESOLVED (2026-07-15) — no BIOS change needed.** The memory
