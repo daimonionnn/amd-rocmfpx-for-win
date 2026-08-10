@@ -340,15 +340,18 @@ the fork still offers a Q8 user, in order of realism:
    on the lemonade build (`Serve-Qwen.ps1`); use the fork only for ROCmFPX-format models.**
    **REVISED by §9 (2026-08-10):** that −22% was measured at `n-max 4` on a short prompt — the
    fork's worst case on both axes. Raising the draft depth recovers most of it, and the penalty
-   shrinks steeply with context: **−15% at 2K but only −5% at 32K**, while the fork's prefill edge
-   grows (+6% at 32K). The serving recommendation stands (why pay 5% for nothing on a standard
-   quant), but the *ROCmFPX-format* lanes are no longer priced out by it.
+   shrinks steeply with context, then disappears: **−15% at 2K, −5% at 32K, +2% at 128K.** The
+   fork's MTP deficit is a short-context artifact. On standard Q8 at our serving depth the two
+   runtimes are equivalent (decode 14.2 vs 13.9, prefill 139.5 vs 138.8), so `Serve-Qwen.ps1`
+   staying on lemonade is now a convenience default rather than a performance one — and the
+   *ROCmFPX-format* lanes are not priced out by the runtime at all.
 2. **`Q8_0_ROCMFPX_AGENT`** — 8.25 bpw with allegedly protected tool-calling/JSON tensors. At
    8 bit the headroom over plain Q8_0 is tiny and the claim is unmeasured; for our base model the
    file doesn't exist (would require self-quantizing from a BF16 source). Experiment, not a plan.
-   **Upgraded to a plausible experiment by §9:** the fork tax at depth is ~5%, not 22%, and our
-   build does expose the preset (`llama-quantize.exe` lists enum `115 Q8_0_ROCMFPX_AGENT`) with
-   the BF16 source already local. The published third-party file
+   **Upgraded to a plausible experiment by §9:** there is no fork tax at our serving depth (128K
+   is parity), and our build does expose the preset (`llama-quantize.exe` lists enum
+   `115 Q8_0_ROCMFPX_AGENT`) with the BF16 source already local. The only speed cost left is the
+   preset's own size (>27.05 GiB), which also eats into the 262K host-RAM headroom. The published third-party file
    ([Qwopus3.6-27B-Coder](https://huggingface.co/philtheriver/Qwopus3.6-27B-Coder-MTP-ROCmFPX),
    30 GB) is **not** a shortcut: it is two fine-tunes away from vanilla Qwen3.6-27B
    (→ Qwopus-v2 → Coder, tuned for no-thinking terminal coding loops), its own card benchmarks a
@@ -400,21 +403,32 @@ prose-side estimate, not a guarantee for Hermes.
 |-------------------|--------:|--------:|--------:|--------------:|-----------------:|
 | @2K               |    16.8 |    17.5 |**18.2** |   21.4 (n6)   |         **−15%** |
 | @32K              |    17.8 |**19.3** |    19.1 |   20.3 (n8)   |          **−5%** |
+| @128K (~137K)     |       — |**14.2** |       — |   13.9 (n6)   |     **+2%** fork |
 | prefill @32K      |   248.8 |   258.9 |   261.8 |        ~247   |     **+6%** fork |
+| prefill @128K     |       — |   139.5 |       — |        138.8  |    **+0.5%** fork |
 
 1. **The fork really did suffer most from the shallow default.** Going 4→6/8 is worth +8.4% to the
    fork at 32K versus +2.8% to lemonade — it was under-speculating, and n-max 4 punished it harder.
 2. **But depth does not close the gap.** Best-vs-best the fork still trails at both contexts.
-3. **The gap shrinks steeply with context: −15% at 2K → −5% at 32K.** §8's headline number
-   (16.3 vs 20.9, i.e. −22%) was measured at n-max 4 on a short prompt — the fork's worst case on
-   both axes. At the depth this box actually serves, the fork's MTP penalty is a few percent, not
-   a fifth. Prefill still favours the fork and also grows with context (+6% at 32K, −7% at 2K).
+3. **The gap shrinks steeply with context and then inverts: −15% at 2K → −5% at 32K → +2% at
+   128K.** §8's headline number (16.3 vs 20.9, i.e. −22%) was measured at n-max 4 on a short
+   prompt — the fork's worst case on both axes. **The fork's MTP penalty is a short-context
+   phenomenon; at the depth this box actually serves there is none.** Prefill lands at parity too
+   (139.5 vs 138.8), so the fork's mid-context prefill edge (+6% at 32K) does not survive to 128K
+   either — at depth the two runtimes are simply equivalent on standard Q8.
+4. **Same run, a reminder of what dominates:** decode falls 20.1 → 13.9 t/s from 32K to 128K on
+   identical model and settings (−31%), purely from KV traffic (§7). Anything tuned at short
+   context shows up damped on the real workload.
 
-Consequence for the `Q8_0_ROCMFPX_AGENT` lane: it is **no longer ruled out on speed**. Paying ~5%
-decode at depth for a preset that protects tool-call/JSON coherence is a trade worth measuring,
-where paying 22% was not. Still unmeasured, and still the deciding question: does the AGENT preset
-do anything for agent quality? The 128K point (where the trend suggests the gap may close entirely)
-is the missing number.
+Consequence for the `Q8_0_ROCMFPX_AGENT` lane: it is **no longer ruled out on speed at all** — the
+runtime is free at depth, so the only remaining speed cost is the preset's own extra bytes (8.25
+bpw + promotions, so >27.05 GiB, which the bandwidth rule turns into a few percent of decode). The
+deciding question is now purely quality: does the AGENT preset actually do anything for
+tool-calling? That needs real Hermes traces; PPL demonstrably cannot answer it (§8, ciru data).
+
+Caveats on the 128K row: one run per runtime (~16 min each, almost all prefill). The 3-rep
+determinism above was established at 32K, and 128K adds KV-placement variance from the driver bug,
+so read +2% as **parity**, not as a measured fork advantage.
 
 ## Head-to-head vs LM Studio (same model Q8_0 MTP) — full parity
 

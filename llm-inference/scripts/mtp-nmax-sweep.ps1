@@ -17,7 +17,8 @@
 #               Re-run with -Runtime rocmfpx to test whether deeper drafting closes that gap.
 param(
     [int]$Repeat = 1,
-    [ValidateSet('','2k','32k')][string]$Only = '',
+    [ValidateSet('','2k','32k','128k')][string]$Only = '',
+    [int[]]$NMax = @(),
     [ValidateSet('rocm7','rocmfpx')][string]$Runtime = 'rocm7',
     [string]$OutFile = ''
 )
@@ -60,8 +61,11 @@ function ParseRun($log) {
 }
 
 $cases = @(
-    @{ label='2k';  file="$sp\prompt-2k.txt";  ctx=8192  },
-    @{ label='32k'; file="$sp\prompt-32k.txt"; ctx=36000 }
+    @{ label='2k';   file="$sp\prompt-2k.txt";   ctx=8192   },
+    @{ label='32k';  file="$sp\prompt-32k.txt";  ctx=36000  },
+    # ~137K tokens. Not in the default set: one run costs ~16 min, almost all of it prefill.
+    # Reach it with -Only 128k, and narrow the configs with -NMax to keep the bill sane.
+    @{ label='128k'; file="$sp\prompt-128k.txt"; ctx=138000 }
 )
 # p_min '' = leave llama.cpp's default, which this build reports as 0.00 - i.e. the ciru profile's
 # explicit "--spec-draft-p-min 0.0" is a no-op vs what we already run. The only real difference
@@ -95,8 +99,11 @@ function RunOne($label, $file, $ctx, $nmax, $pmin, $rep) {
         Out-File $out -Append -Encoding utf8
 }
 
+if ($NMax.Count) { $configs = @($configs | Where-Object { $NMax -contains $_.nmax -and $_.pmin -eq '' }) }
+
 foreach ($c in $cases) {
-    if ($Only -and $c.label -ne $Only) { continue }
+    if ($Only) { if ($c.label -ne $Only) { continue } }
+    elseif ($c.label -eq '128k') { continue }   # opt-in only: ~16 min per run
     # Interleave reps rather than looping a config N times back-to-back, so slow drift (thermals,
     # page cache) hits every config equally instead of penalising whichever ran last.
     for ($rep = 1; $rep -le $Repeat; $rep++) {
