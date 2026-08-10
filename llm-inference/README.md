@@ -488,12 +488,23 @@ Results land in `results\`.
 
 ## Open questions / next
 
-- **TODO — build a synthetic tool-call eval harness.** Nothing in this repo measures agent
-  behaviour; every quality number here is perplexity, and §8 now has direct evidence that PPL
-  fails at exactly this job (ciru's 4.82-bpw recipe: *better* PPL than the Q6 baseline, 0.60 vs
-  0.76 on agent scenarios). Design: a fixed set of tool-call/JSON tasks, temp 0, scored on
-  parse-rate and argument correctness rather than prose similarity, run through the OpenAI
-  endpoint so any served config can be compared. One harness unblocks two open questions:
+- **TODO — stand up a tool-call eval.** Nothing in this repo measures agent behaviour; every
+  quality number here is perplexity, and §8 now has direct evidence that PPL fails at exactly this
+  job (ciru's 4.82-bpw recipe: *better* PPL than the Q6 baseline, 0.60 vs 0.76 on agent scenarios).
+  **Start with [tool-eval-bench](https://github.com/SeraphimSerapis/tool-eval-bench)** rather than
+  hand-rolling one: MIT, active, 69 deterministic scenarios (+15 hard mode) scored pass/partial/
+  fail, driven entirely through an OpenAI-compatible `/chat/completions` endpoint — so
+  `Serve-Qwen.ps1` works as-is, and it auto-discovers llama.cpp on localhost.
+
+  Two caveats for this box. (1) It documents Linux/macOS only; Python 3.8+ should carry it on
+  Windows but budget some debugging, or use its Docker compose path. (2) Its own README notes **no
+  parallel tool-call support on the llama.cpp backend** — those scenarios will measure our serving
+  stack, not the model. Both cancel in an A/B, but our absolute score will not be comparable to
+  their published numbers. Same logic defuses their contamination warning: published scenarios
+  leaking into training data breaks cross-model claims, not a comparison of two quants of the
+  *same* weights, where the exposure is identical in both arms.
+
+  One eval unblocks two open questions:
   1. **Validate ROCmFP4 for the agent** (the item below, open since 2026-07-15). Payoff if it
      passes: **16.6 vs 13.9 t/s at 128K, ≈+19% on the real workload.** If it fails, that lane
      closes for good and no ROCmFPX question remains.
