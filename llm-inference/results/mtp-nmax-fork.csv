@@ -1,0 +1,9 @@
+runtime,ctx_label,n_max,p_min,rep,prefill_tps,decode_tps
+rocmfpx,2k,4,default (0.00),1,324.30,16.80
+rocmfpx,2k,6,default (0.00),1,324.50,17.50
+rocmfpx,2k,8,default (0.00),1,324.10,18.20
+rocmfpx,2k,6,0.75,1,325.00,17.60
+rocmfpx,32k,4,default (0.00),1,248.80,17.80
+rocmfpx,32k,6,default (0.00),1,258.90,19.30
+rocmfpx,32k,8,default (0.00),1,261.80,19.10
+rocmfpx,32k,6,0.75,1,261.80,19.30

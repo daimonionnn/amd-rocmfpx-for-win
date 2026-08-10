@@ -11,14 +11,26 @@
 #   -Repeat N   run each config N times (default 1). Decode here carries ~+-0.7 t/s of run-to-run
 #               variance from draft acceptance, so a single pass cannot resolve a few-percent gap.
 #   -Only       restrict to one context label ('2k' or '32k') to spend the reps where it matters.
+#   -Runtime    'rocm7' (default, lemonade production build) or 'rocmfpx' (the fork). The fork can
+#               only be reached through its own binaries, and S8 measured its MTP path 22% slower
+#               than lemonade on an identical Q8_0 - at n-max 4, before we knew depth mattered.
+#               Re-run with -Runtime rocmfpx to test whether deeper drafting closes that gap.
 param(
     [int]$Repeat = 1,
     [ValidateSet('','2k','32k')][string]$Only = '',
+    [ValidateSet('rocm7','rocmfpx')][string]$Runtime = 'rocm7',
     [string]$OutFile = ''
 )
 $ErrorActionPreference = 'Continue'
 $devRoot = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
-$bin   = "$devRoot\llm-bench\bin\llama-cli.exe"
+if ($Runtime -eq 'rocmfpx') {
+    $bin = "$PSScriptRoot\..\bin-rocmfpx\llama-cli.exe"
+    # The fork's binaries are staged without the HIP runtime; they load it from the HIP SDK.
+    if (-not $env:HIP_PATH) { throw "HIP_PATH is not set - the ROCmFPX build needs the HIP SDK at runtime." }
+    $env:PATH = "$($env:HIP_PATH.TrimEnd('\'))\bin;$env:PATH"
+} else {
+    $bin = "$devRoot\llm-bench\bin\llama-cli.exe"
+}
 $model = "$env:USERPROFILE\.lmstudio\models\unsloth\Qwen3.6-27B-MTP-GGUF\Qwen3.6-27B-Q8_0.gguf"
 $sp    = "$PSScriptRoot\..\data"
 $out   = if ($OutFile) { $OutFile } else { "$PSScriptRoot\..\results\mtp-nmax-sweep.csv" }
@@ -35,7 +47,7 @@ foreach ($p in @(@{f="$sp\prompt-2k.txt"; n=8500}, @{f="$sp\prompt-32k.txt"; n=1
 }
 
 if (Test-Path $out) { Remove-Item $out }
-'ctx_label,n_max,p_min,rep,prefill_tps,decode_tps' | Out-File $out -Encoding utf8
+'runtime,ctx_label,n_max,p_min,rep,prefill_tps,decode_tps' | Out-File $out -Encoding utf8
 
 # This build does not emit the classic llama_perf timing block under --simple-io; it prints its own
 # "[ Prompt: X t/s | Generation: Y t/s ]" summary instead (same source as the S5/S7 tables).
@@ -69,16 +81,17 @@ function RunOne($label, $file, $ctx, $nmax, $pmin, $rep) {
     if ($pmin -ne '') { $a += @('--spec-draft-p-min', $pmin) }
 
     $tag = "n$nmax$(if ($pmin -ne '') { "-pmin$pmin" })"
-    Write-Host "`n======== $label / $tag / rep $rep ========" -ForegroundColor Yellow
-    $log = "$PSScriptRoot\..\results\mtp-nmax-$label-$tag$(if ($Repeat -gt 1) { "-r$rep" }).log"
+    Write-Host "`n======== $Runtime / $label / $tag / rep $rep ========" -ForegroundColor Yellow
+    $pfx = if ($Runtime -eq 'rocmfpx') { 'mtp-nmax-fork' } else { 'mtp-nmax' }
+    $log = "$PSScriptRoot\..\results\$pfx-$label-$tag$(if ($Repeat -gt 1) { "-r$rep" }).log"
     & $bin @a *>$log
 
     $r = ParseRun $log
     Write-Host ("  prefill t/s   : {0:N2}" -f $r.pp) -ForegroundColor White
     Write-Host ("  decode  t/s   : {0:N2}" -f $r.tg) -ForegroundColor Green
 
-    "{0},{1},{2},{3},{4:N2},{5:N2}" -f `
-        $label,$nmax,$(if($pmin -ne ''){$pmin}else{'default (0.00)'}),$rep,$r.pp,$r.tg |
+    "{0},{1},{2},{3},{4},{5:N2},{6:N2}" -f `
+        $Runtime,$label,$nmax,$(if($pmin -ne ''){$pmin}else{'default (0.00)'}),$rep,$r.pp,$r.tg |
         Out-File $out -Append -Encoding utf8
 }
 
@@ -95,7 +108,7 @@ Get-Content $out
 
 if ($Repeat -gt 1) {
     Write-Host "`nMedian decode t/s by config:" -ForegroundColor Cyan
-    Import-Csv $out | Group-Object ctx_label,n_max,p_min | ForEach-Object {
+    Import-Csv $out | Group-Object runtime,ctx_label,n_max,p_min | ForEach-Object {
         $tg = @($_.Group.decode_tps | ForEach-Object { [double]$_ } | Sort-Object)
         "{0,-28} median {1,5:N2}   min {2,5:N2}   max {3,5:N2}" -f `
             $_.Name, $tg[[int]($tg.Count/2)], $tg[0], $tg[-1]

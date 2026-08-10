@@ -338,9 +338,25 @@ the fork still offers a Q8 user, in order of realism:
    output tokens come from drafts (64% vs 73%) and per-step overhead is higher. High acceptance,
    worse throughput: it under-speculates. This more than offsets the prefill edge → **serve Q8
    on the lemonade build (`Serve-Qwen.ps1`); use the fork only for ROCmFPX-format models.**
+   **REVISED by §9 (2026-08-10):** that −22% was measured at `n-max 4` on a short prompt — the
+   fork's worst case on both axes. Raising the draft depth recovers most of it, and the penalty
+   shrinks steeply with context: **−15% at 2K but only −5% at 32K**, while the fork's prefill edge
+   grows (+6% at 32K). The serving recommendation stands (why pay 5% for nothing on a standard
+   quant), but the *ROCmFPX-format* lanes are no longer priced out by it.
 2. **`Q8_0_ROCMFPX_AGENT`** — 8.25 bpw with allegedly protected tool-calling/JSON tensors. At
    8 bit the headroom over plain Q8_0 is tiny and the claim is unmeasured; for our base model the
    file doesn't exist (would require self-quantizing from a BF16 source). Experiment, not a plan.
+   **Upgraded to a plausible experiment by §9:** the fork tax at depth is ~5%, not 22%, and our
+   build does expose the preset (`llama-quantize.exe` lists enum `115 Q8_0_ROCMFPX_AGENT`) with
+   the BF16 source already local. The published third-party file
+   ([Qwopus3.6-27B-Coder](https://huggingface.co/philtheriver/Qwopus3.6-27B-Coder-MTP-ROCmFPX),
+   30 GB) is **not** a shortcut: it is two fine-tunes away from vanilla Qwen3.6-27B
+   (→ Qwopus-v2 → Coder, tuned for no-thinking terminal coding loops), its own card benchmarks a
+   *different* file (the 26 GB `headQ6-Q6_0_ROCMFPX_AGENT` flagship, leaving the Q8 AGENT tier
+   unmeasured), all its quality evidence is PPL against its own Q6_K (+0.17%), and it warns that
+   tool calls need the `qwen3_coder` parser plus an optional compat template or "the model
+   narrates code instead of emitting structured calls". Swapping the base model is a far larger
+   quality change than swapping the quant format. Self-quantize from our BF16 instead.
 3. **The FP4 lane** for speed-first use: −1.7% PPL buys 1.8× decode at short context, 1.52× raw
    decode at 128K, and **with MTP the fastest measured 128K decode on this box (16.6 vs 13.5 t/s,
    +23% over production)**. The quality-first agent default stays Q8+MTP until FP4 is validated
@@ -375,6 +391,30 @@ Raw data: `results\mtp-nmax-sweep.csv` (single pass, both contexts) and
 `results\mtp-nmax-confirm-32k.csv` (3 reps at 32K). Caveat: measured on prose with llama-cli;
 a real agent trace (tool calls, structured output) drafts differently, so treat +3% as the
 prose-side estimate, not a guarantee for Hermes.
+
+**Same sweep on the ROCmFPX fork — this revises §8's "the fork under-speculates" verdict.**
+`-Runtime rocmfpx`, identical Q8_0 file and prompts, so the delta is runtime + draft depth only
+(`results\mtp-nmax-fork.csv`):
+
+| decode t/s        | n-max 4 | n-max 6 | n-max 8 | best lemonade | fork vs lemonade |
+|-------------------|--------:|--------:|--------:|--------------:|-----------------:|
+| @2K               |    16.8 |    17.5 |**18.2** |   21.4 (n6)   |         **−15%** |
+| @32K              |    17.8 |**19.3** |    19.1 |   20.3 (n8)   |          **−5%** |
+| prefill @32K      |   248.8 |   258.9 |   261.8 |        ~247   |     **+6%** fork |
+
+1. **The fork really did suffer most from the shallow default.** Going 4→6/8 is worth +8.4% to the
+   fork at 32K versus +2.8% to lemonade — it was under-speculating, and n-max 4 punished it harder.
+2. **But depth does not close the gap.** Best-vs-best the fork still trails at both contexts.
+3. **The gap shrinks steeply with context: −15% at 2K → −5% at 32K.** §8's headline number
+   (16.3 vs 20.9, i.e. −22%) was measured at n-max 4 on a short prompt — the fork's worst case on
+   both axes. At the depth this box actually serves, the fork's MTP penalty is a few percent, not
+   a fifth. Prefill still favours the fork and also grows with context (+6% at 32K, −7% at 2K).
+
+Consequence for the `Q8_0_ROCMFPX_AGENT` lane: it is **no longer ruled out on speed**. Paying ~5%
+decode at depth for a preset that protects tool-call/JSON coherence is a trade worth measuring,
+where paying 22% was not. Still unmeasured, and still the deciding question: does the AGENT preset
+do anything for agent quality? The 128K point (where the trend suggests the gap may close entirely)
+is the missing number.
 
 ## Head-to-head vs LM Studio (same model Q8_0 MTP) — full parity
 
