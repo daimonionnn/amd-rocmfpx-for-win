@@ -345,13 +345,30 @@ the fork still offers a Q8 user, in order of realism:
    runtimes are equivalent (decode 14.2 vs 13.9, prefill 139.5 vs 138.8), so `Serve-Qwen.ps1`
    staying on lemonade is now a convenience default rather than a performance one — and the
    *ROCmFPX-format* lanes are not priced out by the runtime at all.
-2. **`Q8_0_ROCMFPX_AGENT`** — 8.25 bpw with allegedly protected tool-calling/JSON tensors. At
-   8 bit the headroom over plain Q8_0 is tiny and the claim is unmeasured; for our base model the
-   file doesn't exist (would require self-quantizing from a BF16 source). Experiment, not a plan.
-   **Upgraded to a plausible experiment by §9:** there is no fork tax at our serving depth (128K
-   is parity), and our build does expose the preset (`llama-quantize.exe` lists enum
-   `115 Q8_0_ROCMFPX_AGENT`) with the BF16 source already local. The only speed cost left is the
-   preset's own size (>27.05 GiB), which also eats into the 262K host-RAM headroom. The published third-party file
+2. ~~**`Q8_0_ROCMFPX_AGENT`**~~ — **CLOSED (2026-08-10). The preset cannot beat plain Q8_0, by
+   construction.** §9 had cleared the two speed objections (no fork tax at depth; our build does
+   expose enum `115`, BF16 source local), so we ran `llama-quantize --dry-run` against our own
+   BF16 before committing an hour to the real thing. It answered the question in 176 ms:
+
+   | | tensors | bpw | per-60 MiB tensor |
+   |---|--------:|----:|------------------:|
+   | routed to `q8_0_rocmfpx` |     312 | 8.25 |         30.94 MiB |
+   | protected as `q8_0`      |     194 | 8.50 |         31.88 MiB |
+
+   Total 27325.74 MiB = **26.69 GiB @ 8.39 bpw** — 1.4% *smaller* than our Q8_0 (27.05 GiB), and
+   MTP survives (`blk.64.nextn.*` present). But the routing is the point: `_AGENT` **promotes
+   nothing above Q8**. It decides which tensors to *shield from* the cheaper ROCmFPX format —
+   token embeddings, output, and attention on a subset of layers stay standard `q8_0`. Our
+   production Q8_0 already carries **all 866 tensors** at standard `q8_0` (the arithmetic checks
+   out: un-shrinking those 312 gives exactly 27.05 GiB). So relative to what we serve today, the
+   AGENT file is equal-or-lower precision on every single tensor. There is no headroom to buy
+   better tool-calling with — the preset is a way to spend a *smaller* budget wisely, not a tier
+   above Q8. **Nothing to test; no file to build.**
+
+   Corollary worth recording: the split is **312 / 194**, the exact counts ciru publishes for the
+   ROCmFP6 STRIX QUALITY recipe ("312 Q6 tensors, 194 Q8 tensors"). Their "quality recipe" *is*
+   this AGENT routing heuristic, applied one tier lower. That is why it buys them something over
+   a Q6 baseline and nothing for us over Q8 — we are already above the ceiling it aims at. The published third-party file
    ([Qwopus3.6-27B-Coder](https://huggingface.co/philtheriver/Qwopus3.6-27B-Coder-MTP-ROCmFPX),
    30 GB) is **not** a shortcut: it is two fine-tunes away from vanilla Qwen3.6-27B
    (→ Qwopus-v2 → Coder, tuned for no-thinking terminal coding loops), its own card benchmarks a
@@ -482,11 +499,13 @@ Results land in `results\`.
   +2.8% decode at 32K, +7% at 2K; `Serve-Qwen.ps1` default moved to 6. It does *not* account for
   the ciru release's claimed margin. Remaining: re-measure on a **real Hermes agent trace** rather
   than prose, where draft acceptance behaves differently.
-- **ROCmFPX (§8):** quantize our own `Q8_0_ROCMFPX_AGENT` from a BF16 Qwen3.6-27B source and A/B it
-  against Q8_0 on **agent tool-calling quality**, not just t/s — that preset is the only ROCmFPX
-  lane that isn't already ruled out by the bandwidth wall, and the 2026-08-09 re-check confirms
-  nobody has published one for our base. The BF16 source is already local
-  (`unsloth\Qwen3.6-27B-MTP-GGUF\Qwen3.6-27B-BF16-0000{1,2}-of-00002.gguf`, 54 GB).
+- ~~**ROCmFPX (§8):** quantize our own `Q8_0_ROCMFPX_AGENT`~~ **CLOSED (2026-08-10, §8 item 2)** —
+  a `--dry-run` against our BF16 shows the preset promotes nothing above Q8; it shields 194 of 506
+  quantized tensors from the cheaper ROCmFPX format while our plain Q8_0 already holds all of them
+  at full `q8_0`. Equal-or-lower precision everywhere, so there is no quality headroom to test.
+  **With this, every ROCmFPX lane is now closed for this workload** — FP4 on quality grounds
+  (pending the trace test below), FP6/quality-recipes because they sit below Q8, AGENT by
+  construction. The fork remains useful only as an equivalent-speed alternative runtime (§9).
 - ROCmFPX decode-kernel tuning profiles (`Setup-ROCmFPX.ps1 -Tune rocmfpx-strix-nwarps2` etc.) are
   untested; only `stable` has been built.
 - ~~Full-native 262K context~~ **RESOLVED (2026-07-15) — no BIOS change needed.** The memory
