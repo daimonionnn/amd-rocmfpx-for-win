@@ -488,6 +488,18 @@ Results land in `results\`.
 
 ## Open questions / next
 
+- **TODO — build a synthetic tool-call eval harness.** Nothing in this repo measures agent
+  behaviour; every quality number here is perplexity, and §8 now has direct evidence that PPL
+  fails at exactly this job (ciru's 4.82-bpw recipe: *better* PPL than the Q6 baseline, 0.60 vs
+  0.76 on agent scenarios). Design: a fixed set of tool-call/JSON tasks, temp 0, scored on
+  parse-rate and argument correctness rather than prose similarity, run through the OpenAI
+  endpoint so any served config can be compared. One harness unblocks two open questions:
+  1. **Validate ROCmFP4 for the agent** (the item below, open since 2026-07-15). Payoff if it
+     passes: **16.6 vs 13.9 t/s at 128K, ≈+19% on the real workload.** If it fails, that lane
+     closes for good and no ROCmFPX question remains.
+  2. **Re-measure MTP draft depth on agent-shaped content** — §9's +2.8%/+3% was measured on
+     prose; tool calls and structured output draft differently, so `n-max` may want a different
+     value in production than the sweep found.
 - Long-context prefill curve (running) → real 128K TTFT number.
 - Pull a TheRock gfx1151 nightly llama.cpp build and re-run the long-ctx curve vs b9910.
 - Stand up lucebox ROCm and A/B **accuracy + TTFT** on real 100K agent traces (not just NIAH).
