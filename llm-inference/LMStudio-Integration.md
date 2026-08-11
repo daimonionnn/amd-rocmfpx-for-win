@@ -113,14 +113,36 @@ copy will fail on locked files:
 Get-Process llama-server, "LM Studio" -ErrorAction SilentlyContinue
 ```
 
-### 3. Pick a target and back it up
+### 3. Pick a target and back it up — **outside `backends\`**
+
+> ⚠️ **The single most likely way to break this.** LM Studio treats *every subfolder* of
+> `extensions\backends\` as an installed backend, including one you created as a backup. A folder
+> named `…-2.25.2.backup` registers as a backend that sorts after `…-2.25.2`, and LM Studio will
+> happily launch **it** — the untouched stock binaries — which then fail on ROCmFPX tensor types
+> with `exitCode=1`. The symptom is maddening because the folder you edited looks perfect:
+>
+> ```
+> 🥲 Failed to load the model
+> Engine protocol runtime llama-server for … exited before becoming healthy. exitCode=1, signal=null
+> ```
+>
+> Diagnosed the hard way on this machine: a process capture during the failed load showed
+> LM Studio running `llama.cpp-win-x86_64-amd-rocm-avx2-2.25.2.backup\llama-server.exe`.
+> Keep backups anywhere except `backends\`.
 
 ```powershell
 $b = "$env:USERPROFILE\.lmstudio\extensions\backends"
 Get-ChildItem $b -Directory | Where-Object Name -match 'amd-rocm'   # choose an older version
 $target = "$b\llama.cpp-win-x86_64-amd-rocm-avx2-2.25.2"
-Copy-Item $target "$target.backup" -Recurse
+
+# Back up OUTSIDE the backends directory, not next to it
+$backups = "$env:USERPROFILE\lmstudio-backend-backups"
+New-Item -ItemType Directory -Force -Path $backups | Out-Null
+Copy-Item $target "$backups\$(Split-Path $target -Leaf).backup" -Recurse
 ```
+
+Reverting later means copying that folder back, or simply deleting the modified one and letting
+LM Studio re-download the runtime.
 
 ### 4. Copy in the ROCmFPX binaries
 
@@ -188,11 +210,45 @@ this branch, do step 5 as well; there is no advantage over the ROCm folder.
 step 5 entirely. One line, but it is global state, it needs the HIP SDK installed, and it can
 shadow other ROCm installations. Fine on a dedicated box, worse as published advice.
 
+## Troubleshooting
+
+**`exited before becoming healthy. exitCode=1`** — almost always means LM Studio launched a
+*different* binary than the one you edited. Confirm which, by capturing the process during a load:
+
+```powershell
+$job = Start-Job { $seen=@{}; $end=(Get-Date).AddSeconds(120)
+  while ((Get-Date) -lt $end) {
+    Get-CimInstance Win32_Process -Filter "Name='llama-server.exe'" -EA SilentlyContinue |
+      ForEach-Object { if (-not $seen[$_.ProcessId]) { $seen[$_.ProcessId]=$true
+        [pscustomobject]@{ PID=$_.ProcessId; Path=$_.ExecutablePath } } }
+    Start-Sleep -Milliseconds 100 } }
+& "$env:USERPROFILE\.lmstudio\bin\lms.exe" load <model-key> -c 4096 -y
+Stop-Job $job; Receive-Job $job | Format-List
+```
+
+`ExecutablePath` tells you the truth in one line. In our case it pointed at the `.backup` folder
+(see step 3). Use `lms load` rather than the GUI while debugging — same engine path, and the error
+arrives in the terminal.
+
+If it *is* the folder you edited, the next suspects are a missing HIP runtime (step 5) or a model
+belonging to a different ROCmFPX fork than the one you built.
+
+**Which model formats your build can read** is broader than the model cards suggest. The ciru
+`Chadrockv2 ROCmFP6 STRIX QUALITY` card says it needs their `ciru-ai/ROCmFPX @ rocmfp6-strix-quality`
+branch — but it loads fine on a build from `charlie12345/ROCmFPX @ main`. The `118` in that card is
+the *quantization recipe* enum used by `llama-quantize`, not a tensor type; the file's tensors are
+`Q6_0_ROCMFPX` and `Q8_0_ROCMFPX` (enums 110/111), which the main branch understands. You need
+their branch to *create* such a file, not to read one. Check what your build supports with:
+
+```powershell
+.\bin-rocmfpx\llama-quantize.exe --help | Select-String ROCMFP
+```
+
 ## Reverting
 
-Delete the modified folder and let LM Studio re-download that runtime, or restore the `.backup`
-copy from step 3. Because you overwrote an older version and left `2.28.1` stock, LM Studio still
-has a working engine either way.
+Delete the modified folder and let LM Studio re-download that runtime, or copy back the backup you
+parked outside `backends\` in step 3. Because you overwrote an older version and left the newest
+one stock, LM Studio still has a working engine either way.
 
 ## Does it change quality? Measured: yes
 
@@ -220,10 +276,9 @@ your own testing on your own workload.
 
 ## Known gaps
 
-- Untested by us end to end: we serve through [`Serve-Qwen.ps1`](Serve-Qwen.ps1), not LM Studio.
-  Every path, size and manifest field above is measured on this machine, but the "does LM Studio
-  actually load a ROCmFPX model this way" step is reproduced from the community post, not verified
-  here.
+- **Verified working on this machine (2026-08-11):** option B, ROCm backend `2.25.2`, ROCmFP4
+  model loaded through `lms load` in 26.8 s at 17.41 GiB. What is *not* verified is sustained
+  generation quality or speed through LM Studio — only that it loads and serves.
 - LM Studio's MTP toggle ("MTP Speculative Decoding" in advanced load settings) passes
   `--spec-type draft-mtp`; whether its defaults match §9's measured best (`--spec-draft-n-max 6`,
   `p-min` at llama.cpp's 0.00) is unchecked. LM Studio was observed using `n-max 4` with
