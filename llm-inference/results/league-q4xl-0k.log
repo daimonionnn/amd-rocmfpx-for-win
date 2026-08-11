@@ -1,0 +1,48 @@
+
+Loading model... 
+
+
+▄▄ ▄▄
+██ ██
+██ ██  ▀▀█▄ ███▄███▄  ▀▀█▄    ▄████ ████▄ ████▄
+██ ██ ▄█▀██ ██ ██ ██ ▄█▀██    ██    ██ ██ ██ ██
+██ ██ ▀█▄██ ██ ██ ██ ▀█▄██ ██ ▀████ ████▀ ████▀
+                                    ██    ██
+                                    ▀▀    ▀▀
+
+build      : b1-6bf20cd
+model      : Qwen3.6-27B-UD-Q4_K_XL.gguf
+modalities : text
+
+available commands:
+  /exit or Ctrl+C     stop or exit
+  /regen              regenerate the last response
+  /clear              clear the chat history
+  /read <file>        add a text file
+  /glob <pattern>     add text files using globbing pattern
+
+
+>  
+ = Valkyria Chronicles III = 
+ 
+ Senjō no Valkyria 3 : Unrecorded Chronicles ( Japanese : 戦場のヴァルキュリア3 , lit . Valkyria of the Battlefield 3 ) , commonly referred to as Valkyria Chronicles III outside Japan , is a tacti
+
+[Start thinking]
+Here's a thinking process:
+
+1.  **Analyze User Input:**
+   - The user provided a partial Wikipedia-style article title and opening sentence: "= Valkyria Chronicles III = \n\n Senjō no Valkyria 3 : Unrecorded Chronicles ( Japanese : 戦場のヴァルキュリア3 , lit . Valkyria of the Battlefield 3 ) , commonly referred to as Valkyria Chronicles III outside Japan , is a tacti"
+   - The text cuts off mid-word ("tacti" -> likely "tactical role-playing game").
+   - This looks like a prompt asking me to complete or continue the text, or perhaps it's just a fragment they pasted by accident.
+
+2.  **Identify Key Information:**
+   - Title: Valkyria Chronicles III
+   - Japanese Title: Senjō no Valkyria 3: Unrecorded Chronicles (戦場のヴァルキュリア3)
+   - Genre: Tactical role-playing game (implied by "tacti")
+   - Developer/Publisher: Sega (typically)
+   - Platform: PlayStation Vita (originally), later ports?
+   - Release: Japan 2011, West 
+
+[ Prompt: 124.9 t/s | Generation: 20.8 t/s ]
+
+Exiting...

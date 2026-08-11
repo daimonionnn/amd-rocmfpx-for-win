@@ -106,7 +106,10 @@ This is the number every optimization below must beat. Source: `results\longctx-
 | Q8_0   | 26.6 GiB |          7.60 |        7.14 |       202 |
 
 `t/s × model-size ≈ constant (~198)` ⇒ decode is **purely memory-bandwidth bound** — effective
-~210 GB/s ≈ **83% of the 256 GB/s LPDDR5X ceiling**. This is the "bursty GPU (100%→0%)" the user
+~210 GB/s ≈ **83% of the 256 GB/s LPDDR5X ceiling**. *(Refined by §12: the product is not quite
+constant. Across seven quants it runs Q8 ~208 → Q6_K ~202 → Q4_K_M ~191 — K-quants pay a
+dequantization cost that grows as bits shrink. Bandwidth still dominates; the ~8% tilt across the
+range was read as noise from these three points alone.)* This is the "bursty GPU (100%→0%)" the user
 saw: memory starvation, NOT thermal/clock throttling.
 
 Implications (speed-first): **Q8 decode is ~40% slower than Q4** (Q6 −25%), but **prefill is quant-
@@ -196,10 +199,15 @@ What falls out of this:
 2. **Prefill is quant-independent, as §3 predicted.** ROCmFP4 prefills at the same speed as Q8_0
    on the same runtime (367/326/284 vs 370/327/286) despite being 42% smaller. No prefill lever
    here.
-3. **ROCmFP4's decode win is just the bandwidth rule, not better kernels.** 13.74 vs 7.68 t/s =
+3. ~~**ROCmFP4's decode win is just the bandwidth rule, not better kernels.**~~ 13.74 vs 7.68 t/s =
    1.79×, and the weight-size ratio is 27.04/15.69 = 1.72×. `t/s × GiB` ≈ 216 vs the ~196–208
-   bandwidth line of §4 — a few percent of kernel edge at most. It is a smaller model, not a
-   faster format.
+   bandwidth line of §4 — a few percent of kernel edge at most.
+   **WRONG QUESTION — corrected in §12 (2026-08-11).** That arithmetic is right but it compares
+   ROCmFP4 against *Q8*. Measured against a conventional 4-bit quant of the same size, ROCmFP4 is
+   **12–14% faster on raw decode**. The reason the Q8 comparison hid it: K-quants pay a
+   dequantization cost that grows as bits shrink, so `t/s × GiB` is not flat across the range —
+   Q8 sits at ~208, Q6_K at ~202, Q4_K_M at ~191. ROCmFP4 sits at ~217, i.e. *on the Q8 line*,
+   which is exactly what its 4-bit peers fail to do.
 4. **Vulkan is the wrong device for this box.** Upstream's "Vulkan is the stronger decode path"
    holds, but barely (+4% decode) — and it costs **−36% on prefill at 32K** (181 vs 284). Prefill
    is our entire bottleneck (§3), so **stay on `-dev ROCm0`.**
@@ -585,6 +593,75 @@ Relevant because the Hermes workload is exactly this shape: long context, many t
 actions taken on content the model did not author. Anything that reaches this agent through tool
 output should be treated as untrusted input, and outbound actions with recipients (email, webhooks)
 are the ones worth gating outside the model.
+
+### 12. Same-league quant comparison — ROCmFP4 does have a real kernel edge (2026-08-11)
+
+Everything before this section compared ROCmFP4 (15.70 GiB) against Q8_0 (27.05 GiB) — different
+leagues, so "4-bit costs quality" was true but uninformative. `scripts\quant-league-compare.ps1`
+runs eight models against size-matched peers, **all on the fork runtime** so the runtime stays
+constant (§10 showed swapping it moves results as much as quantization does).
+
+Two passes: served (MTP `n-max 6`) and a `-NoMtp` control. The control matters because MTP
+multiplies decode by a per-model draft-acceptance factor, so a served number measures bandwidth
+*and* drafting quality fused together.
+
+**Raw decode, no MTP — `t/s × GiB`, the bandwidth-efficiency figure:**
+
+| Model | GiB | 0K | 16K | 32K |
+|---|---:|---:|---:|---:|
+| **ROCmFP4** | 15.70 | **217** | **204** | 192 |
+| Q4_K_M | 15.93 | 191 | 180 | 172 |
+| UD-Q4_K_XL | 16.68 | 192 | 182 | 173 |
+| Chadrockv2 FP6 | 23.47 | 202 | 192 | 185 |
+| Q6_K | 21.31 | 202 | 194 | 185 |
+| UD-Q6_K_XL | 24.23 | 206 | 199 | 191 |
+| Q8_0 | 27.05 | 208 | 200 | 197 |
+| BF16 | 50.90 | *(MTP pass only)* | | |
+
+1. **`t/s × GiB` is not flat across bit-widths, and that is the whole story.** K-quants pay a
+   dequantization cost that grows as bits shrink: Q8 ~208, Q6_K ~202, Q4_K_M ~191. §4 measured the
+   product as "≈198 constant" from three points and read the spread as noise. It is not noise —
+   it is a real ~8% efficiency loss going from 8-bit to 4-bit K-quants.
+2. **ROCmFP4 sits on the Q8 line (~217) — which is exactly what its 4-bit peers cannot do.**
+   Against a same-size conventional quant it is **+12–14% on raw decode**, against a 1.5% edge
+   predicted by size alone. §8 item 3 called this "a few percent at most", which was correct
+   *against Q8* and the wrong comparison to be making.
+3. **Chadrockv2 FP6 has no kernel edge at all** — 202/192/185 against Q6_K's 202/194/185, figure
+   for figure, while being 10% larger. `Q4_0_ROCMFP4` and `Q6_0_ROCMFPX` are different formats
+   from the same fork and only the 4-bit one buys anything.
+
+**MTP speedup (served ÷ raw), the drafting-quality figure:**
+
+| Q8_0 | Chadrockv2 FP6 | Q6_K | UD-Q6_K_XL | ROCmFP4 | UD-Q4_K_XL | Q4_K_M |
+|---:|---:|---:|---:|---:|---:|---:|
+| 2.50× | **2.42×** | 2.18× | 2.17× | **2.01×** | 1.84× | 1.77× |
+
+Acceptance tracks model quality, so bigger quants draft better — and **both ROCmFPX models beat
+their own league**. For ROCmFP4 that is plausibly its `headQ6` output head (4-bit body, 6-bit
+head); for Chadrockv2 FP6 it is the *only* advantage it has.
+
+**Served decode at 16K, what a user actually gets:**
+
+| ROCmFP4 | Q6_K | Chadrockv2 FP6 | Q4_K_M / UD-Q4_K_XL | Q8_0 | UD-Q6_K_XL |
+|---:|---:|---:|---:|---:|---:|
+| **26.2** | 19.8 | 19.8 | 20.0 | 18.5 | 17.8 |
+
+ROCmFP4 is **+42% over Q8_0** and +31% over its own size peers — kernel edge and better drafting
+compounding.
+
+**Prefill is only quant-independent at depth.** Raw prefill at 16K: Q8 323.5, Q4_K_M 266.8,
+ROCmFP4 253.2, UD-Q4_K_XL 247.2, UD-Q6_K_XL 232.7, Q6_K 223.3, **Chadrockv2 FP6 164.2**. §3
+measured quant-independence at 128K, where O(S²) attention dominates and weight handling stops
+mattering — that still holds, but it does not generalise to mid context. FP6's 26% prefill deficit
+against Q6_K is specific to that format and unexplained.
+
+**BF16 vs Q8 on speed: identical efficiency.** Products 484/478/509 against Q8's 484/473/500. Q8 is
+faster purely because it is smaller; there is no anomaly hiding in the reference. This does **not**
+answer whether Q8 loses accuracy against BF16 — that needs the eval, still pending.
+
+Raw data: `results\quant-league.csv` (served) and `results\quant-league-nomtp.csv` (control).
+Caveat that applies to all of it: our FP4 is `plunderstruck`'s and the FP6 is `jcbtc`'s while the
+peers are unsloth's, so builder and format are not separable here — see the sourcing note in §8.
 
 ## Head-to-head vs LM Studio (same model Q8_0 MTP) — full parity
 

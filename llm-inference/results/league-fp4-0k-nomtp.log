@@ -1,0 +1,48 @@
+
+Loading model... 
+
+
+▄▄ ▄▄
+██ ██
+██ ██  ▀▀█▄ ███▄███▄  ▀▀█▄    ▄████ ████▄ ████▄
+██ ██ ▄█▀██ ██ ██ ██ ▄█▀██    ██    ██ ██ ██ ██
+██ ██ ▀█▄██ ██ ██ ██ ▀█▄██ ██ ▀████ ████▀ ████▀
+                                    ██    ██
+                                    ▀▀    ▀▀
+
+build      : b1-6bf20cd
+model      : Qwen3.6-27B-MTP-ROCmFP4-STRIX-imatrix-embF16-headQ6.gguf
+modalities : text
+
+available commands:
+  /exit or Ctrl+C     stop or exit
+  /regen              regenerate the last response
+  /clear              clear the chat history
+  /read <file>        add a text file
+  /glob <pattern>     add text files using globbing pattern
+
+
+>  
+ = Valkyria Chronicles III = 
+ 
+ Senjō no Valkyria 3 : Unrecorded Chronicles ( Japanese : 戦場のヴァルキュリア3 , lit . Valkyria of the Battlefield 3 ) , commonly referred to as Valkyria Chronicles III outside Japan , is a tacti
+
+[Start thinking]
+Here's a thinking process:
+
+1.  **Analyze User Input:**
+   - The user provided a partial Wikipedia-style article title and opening sentence: "= Valkyria Chronicles III = \n\n Senjō no Valkyria 3 : Unrecorded Chronicles ( Japanese : 戦場のヴァルキュリア3 , lit . Valkyria of the Battlefield 3 ) , commonly referred to as Valkyria Chronicles III outside Japan , is a tacti"
+   - The text cuts off mid-word ("tacti" -> likely "tactical role-playing game").
+   - This looks like a prompt asking me to complete or continue the text, or perhaps it's just a snippet they pasted. Given the format, it's highly likely they want me to complete the sentence/article in a Wikipedia style.
+
+2.  **Identify Key Information Needed:**
+   - Game: Valkyria Chronicles III (Senjō no Valkyria 3: Unrecorded Chronicles)
+   - Genre: Tactical role-playing game
+   - Developer: Sega (specifically Sega CS3)
+   - Publisher: Sega
+   - Platforms: PlayStation Portable (PSP)
+   - Release dates: Japan (March 2
+
+[ Prompt: 196.4 t/s | Generation: 13.8 t/s ]
+
+Exiting...

@@ -1,0 +1,50 @@
+
+Loading model... 
+
+
+▄▄ ▄▄
+██ ██
+██ ██  ▀▀█▄ ███▄███▄  ▀▀█▄    ▄████ ████▄ ████▄
+██ ██ ▄█▀██ ██ ██ ██ ▄█▀██    ██    ██ ██ ██ ██
+██ ██ ▀█▄██ ██ ██ ██ ▀█▄██ ██ ▀████ ████▀ ████▀
+                                    ██    ██
+                                    ▀▀    ▀▀
+
+build      : b1-6bf20cd
+model      : Qwen3.6-27B-UD-Q4_K_XL.gguf
+modalities : text
+
+available commands:
+  /exit or Ctrl+C     stop or exit
+  /regen              regenerate the last response
+  /clear              clear the chat history
+  /read <file>        add a text file
+  /glob <pattern>     add text files using globbing pattern
+
+
+>  
+ = Valkyria Chronicles III = 
+ 
+ Senjō no Valkyria 3 : Unrecorded Chronicles ( Japanese : 戦場のヴァルキュリア3 , lit . Valkyria of the Battlefield 3 ) , commonly referred to as Valkyria Chronicles III outside Japan , is a tactical role @-@ playing video game developed by Sega and Media.Vision for the PlayStation Portable . Released in January 2011 in Japan , it is the third game in the Valkyria series . Employing the same fusion of tactical and real @-@ time gameplay as its predece ... (truncated)
+
+[Start thinking]
+Here's a thinking process:
+
+1.  **Analyze User Input:**
+   - The user provided a Wikipedia-style article about "Valkyria Chronicles III" (Senjō no Valkyria 3: Unrecorded Chronicles).
+   - The text covers: Overview/Introduction, Gameplay, and Plot.
+   - The plot section cuts off mid-sentence at the end: "...Kurt decides to once again make his squad the Nameless, asking Crowe to list himself and all under his command as killed @-@ in @-@ action . Now owing allegiance to none other than themselves , the 422nd confronts Dahau and destroy"
+   - The user didn't ask a specific question. They just pasted the text.
+
+2.  **Identify the Core Task:**
+   - Since there's no explicit prompt, I need to infer what the user wants. Common possibilities:
+     - Complete the cut-off sentence/paragraph.
+     - Summarize the text.
+     - Fix formatting/typos.
+     - Ask for more information.
+     - Just acknowledge and offer assistance.
+   - Given the abrupt cutoff at "destroy", the most logical and helpful response is
+
+[ Prompt: 247.2 t/s | Generation: 21.1 t/s ]
+
+Exiting...

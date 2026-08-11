@@ -1,0 +1,59 @@
+
+Loading model... 
+
+
+▄▄ ▄▄
+██ ██
+██ ██  ▀▀█▄ ███▄███▄  ▀▀█▄    ▄████ ████▄ ████▄
+██ ██ ▄█▀██ ██ ██ ██ ▄█▀██    ██    ██ ██ ██ ██
+██ ██ ▀█▄██ ██ ██ ██ ▀█▄██ ██ ▀████ ████▀ ████▀
+                                    ██    ██
+                                    ▀▀    ▀▀
+
+build      : b1-6bf20cd
+model      : Qwen3.6-27B-Q4_K_M.gguf
+modalities : text
+
+available commands:
+  /exit or Ctrl+C     stop or exit
+  /regen              regenerate the last response
+  /clear              clear the chat history
+  /read <file>        add a text file
+  /glob <pattern>     add text files using globbing pattern
+
+
+>  
+ = Valkyria Chronicles III = 
+ 
+ Senjō no Valkyria 3 : Unrecorded Chronicles ( Japanese : 戦場のヴァルキュリア3 , lit . Valkyria of the Battlefield 3 ) , commonly referred to as Valkyria Chronicles III outside Japan , is a tactical role @-@ playing video game developed by Sega and Media.Vision for the PlayStation Portable . Released in January 2011 in Japan , it is the third game in the Valkyria series . Employing the same fusion of tactical and real @-@ time gameplay as its predece ... (truncated)
+
+[Start thinking]
+Here's a thinking process:
+
+1.  **Analyze User Input:**
+   - The user provided a very long text containing multiple Wikipedia-style articles about various topics:
+     - Valkyria Chronicles III
+     - Tower Building of the Little Rock Arsenal
+     - Cicely Mary Barker
+     - Gambia women's national football team
+     - Plain maskray
+     - 2011–12 Columbus Blue Jackets season
+     - Gregorian Tower
+     - There's Got to Be a Way (song)
+     - Nebraska Highway 88
+     - USS Atlanta (1861)
+     - Jacqueline Fernandez
+     - John Cullen
+     - SMS Erzherzog Ferdinand Max
+     - Ancient Egyptian deities
+     - South of Heaven (album)
+     - General aviation in the United Kingdom
+     - SMS Zrínyi
+     - Geopyxis carbonaria
+     - Gold dollar
+   - The text cuts off abruptly at the end: "Congress was finally galvanized into action by the increased supply of bullion caused by the California gold rush, and in 1849 authorized"
+   - There is no explicit question or prompt from the user. It's just a dump
+
+[ Prompt: 167.6 t/s | Generation: 19.2 t/s ]
+
+Exiting...

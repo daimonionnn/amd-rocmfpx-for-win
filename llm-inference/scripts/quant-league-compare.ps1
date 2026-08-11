@@ -45,6 +45,11 @@ param(
     [string[]]$Depths = @('0k','2k','16k','32k','64k'),
     [string[]]$Models = @(),
     [int]$DraftNMax = 6,
+    # MTP multiplies decode by a draft-acceptance factor that differs per model, so a served
+    # comparison measures bandwidth AND drafting quality together. That matters here: ROCmFP4 keeps
+    # its output head at Q6 (embF16-headQ6) while its body is 4-bit, which should draft better than
+    # a uniformly 4-bit peer. Run with -NoMtp to get raw decode and separate the two.
+    [switch]$NoMtp,
     [string]$OutFile = ''
 )
 $ErrorActionPreference = 'Continue'
@@ -143,11 +148,12 @@ foreach ($m in $catalog) {
         }
         $spec = $depthSpec[$d]
         Write-Host "`n======== $($m.label) / $d ========" -ForegroundColor Yellow
-        $log = "$PSScriptRoot\..\results\league-$($m.key)-$d.log"
-        & $bin -m $m.path -f "$sp\prompt-$d.txt" -n 256 -c "$($spec.ctx)" -t 16 -ngl -1 -fa on `
-               -dev ROCm0 --temp 0 --seed 123 --no-warmup --simple-io --single-turn `
-               --no-display-prompt --keep 0 `
-               --spec-type draft-mtp --spec-draft-n-max "$DraftNMax" *>$log
+        $log = "$PSScriptRoot\..\results\league-$($m.key)-$d$(if ($NoMtp) { '-nomtp' }).log"
+        $a = @('-m',$m.path,'-f',"$sp\prompt-$d.txt",'-n','256','-c',"$($spec.ctx)",'-t','16',
+               '-ngl','-1','-fa','on','-dev','ROCm0','--temp','0','--seed','123','--no-warmup',
+               '--simple-io','--single-turn','--no-display-prompt','--keep','0')
+        if (-not $NoMtp) { $a += @('--spec-type','draft-mtp','--spec-draft-n-max',"$DraftNMax") }
+        & $bin @a *>$log
 
         $r = ParseRun $log
         # decode x GiB is the bandwidth-rule product: flat across quants means the format adds
