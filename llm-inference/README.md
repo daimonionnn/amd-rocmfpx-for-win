@@ -260,6 +260,34 @@ TTFT numbers elsewhere in this README predate the change and read conservative.
 (IOMMU / AMD-Vi under chipset/advanced settings); on Linux either BIOS or the `amd_iommu=off`
 kernel parameter (GRUB).
 
+**Where ROCmFPX models actually come from — and why that matters on its own.**
+`Q4_0_ROCMFP4` and `Q6_0_ROCMFPX` are custom tensor types from a single fork, not part of
+llama.cpp. So the well-known quant publishers — unsloth, mradermacher, bartowski — do **not**
+produce them and never will; they ship standard GGUF that runs anywhere. Every ROCmFPX file in
+existence comes from a handful of individuals downstream of that one fork: `plunderstruck`,
+`philtheriver`, `jcbtc`/ciru, `Lucebox`, `rcmorano`. There is no "more reputable source" to prefer.
+That is the whole supply.
+
+| | unsloth / mradermacher | ROCmFPX quants |
+|---|---|---|
+| Recipe | documented, reproducible | per-author, usually unstated |
+| Independent verification | thousands of users surface bugs | effectively none |
+| Portability | any runtime | one fork, one runtime |
+| Maintenance | active community | individuals |
+
+None of that shows up in a throughput or perplexity number, and for production it weighs as much
+as either.
+
+**Methodological caveat on every ROCmFPX-vs-conventional comparison in this repo.** Our ROCmFP4
+file is `plunderstruck`'s and the FP6 is `jcbtc`'s, while the conventional peers are unsloth's.
+Different authors, different calibration data, different imatrix sets — so a comparison between
+them is **not a clean format-vs-format test**. It mixes the format with whoever built the file.
+Separating the two would mean self-quantizing ROCmFP4 from our own BF16 with our own imatrix,
+which introduces the question of whether *our* calibration is any good. Not done. What these
+comparisons do answer is the practical question — *is this ROCmFP4 file better than this Q4 file* —
+which is the one that matches what a person actually downloads. Read them that way, not as a
+verdict on the format in the abstract.
+
 **Cross-check: the ciru-ai "ROCmFP6 STRIX QUALITY" release (reviewed 2026-08-09).**
 [jcbtc/Chadrockv2-Qwen3.6-27B-ROCmFP6-STRIX-QUALITY](https://huggingface.co/jcbtc/Chadrockv2-Qwen3.6-27B-ROCmFP6-STRIX-QUALITY)
 is the first ROCmFPX quant of *our* base model that keeps MTP heads (23.5 GiB, 7.37 bpw:
@@ -605,6 +633,45 @@ Benchmarks (`scripts\`):
 - `scripts\mtp-nmax-sweep.ps1` — MTP draft-depth sweep (`n-max` 4/6/8, `p-min`) on production Q8_0 (§8).
 
 Results land in `results\`.
+
+## In progress — same-league quant comparison (started 2026-08-11)
+
+Everything in §8 and §10 compares ROCmFP4 (15.70 GiB) against Q8_0 (27.05 GiB). That is a real
+result but a trivial one: it compares leagues, and of course the 8-bit model wins. The question
+that actually tests what ROCmFPX claims is whether its formats beat a **conventional quant of the
+same size** — and, separately, whether the 128K framing has been hiding a legitimate niche, since
+plenty of real requests land at 16K–64K where a smaller model's decode advantage is largest.
+
+Eight models, two leagues, all on the **fork runtime** so the runtime is held constant (§10 showed
+swapping it moves results as much as 4-bit quantization does):
+
+| League | Model | GiB | What it isolates |
+|---|---|---:|---|
+| 4-bit | ROCmFP4 | 15.70 | — |
+| | Q4_K_M | 15.93 | the **format** — closest size, conventional recipe |
+| | UD-Q4_K_XL | 16.68 | the **protection recipe** — protected embeddings/head, same idea as FP4's `embF16-headQ6` |
+| 6-bit | Chadrockv2 FP6 | 23.47 | never measured here before; §8 only ever reviewed its card |
+| | Q6_K | 21.31 | format |
+| | UD-Q6_K_XL | 24.23 | protection recipe |
+| ref | Q8_0 | 27.05 | current production |
+| | BF16 | 50.90 | the actual ceiling (0K–16K only; deeper it cannot fit beside the KV cache) |
+
+- [x] Download the peers
+- [ ] **Speed sweep** — `scripts\quant-league-compare.ps1`, 5 depths (0K/2K/16K/32K/64K). Reports
+      `decode × GiB` and, per pair, the measured lead against the lead a model's size alone
+      predicts. Flat product ⇒ the format adds nothing beyond being smaller.
+- [ ] **Tool-eval** each of the six league models on the fork (FP4 and Q8 already measured)
+- [ ] **Settle Q8 vs BF16.** This repo treats Q8 as "reference" and near-lossless — a borrowed
+      assumption, never measured here. If Q8 loses measurably, every "vs Q8" figure above needs
+      rereading.
+- [ ] Rewrite §8/§10 around the same-league result and give ROCmFP4 back whatever niche the data
+      supports; update `SUMMARY.md`
+
+Expectation on record before the numbers land: the sweep is likely to be boring. §4's bandwidth
+rule holds within a few percent across Q4/Q6/Q8 and §8 already measured ROCmFP4 at only ~4% above
+it. The eval is where the open questions are — does FP4 lose to *Q4_K_M* on tool calling, what does
+the never-tested FP6 actually do, and is Q8 really free. And if the whole matrix lands within
+noise, that gets reported as "indistinguishable on this scenario set", not as a winner.
 
 ## Open questions / next
 
