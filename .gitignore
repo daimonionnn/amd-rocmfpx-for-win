@@ -10,3 +10,7 @@ llm-inference/src/
 
 # Downloaded benchmark corpus (rocmfpx-ppl.ps1 fetches it)
 llm-inference/data/
+
+# tool-eval-bench writes a run database into whatever directory it is launched from.
+# The exported per-run JSON in llm-inference/results/tool-eval/ is the artifact worth keeping.
+data/benchmarks.sqlite*
