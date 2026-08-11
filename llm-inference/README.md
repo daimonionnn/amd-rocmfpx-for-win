@@ -412,6 +412,24 @@ Raw data: `results\mtp-nmax-sweep.csv` (single pass, both contexts) and
 a real agent trace (tool calls, structured output) drafts differently, so treat +3% as the
 prose-side estimate, not a guarantee for Hermes.
 
+**Correction on method (2026-08-11): draft acceptance *is* observable — use `llama-server`.**
+This sweep used `llama-cli`, which prints no draft statistics in this build, so the numbers above
+are throughput-only. `llama-server` logs them per request:
+
+```
+draft acceptance = 0.75352 (  321 accepted /   426 generated), mean len =  5.52
+```
+
+Mined from the §10 eval server log (226 requests, agent-shaped content, `n-max 6`): **mean
+acceptance 0.654** (range 0.373–0.979), **mean draft length 4.92** of a possible 6. Drafts running
+just under the cap explains why n-max 8 added only +0.5% — acceptance decays before the cap binds.
+
+This does **not** settle §5's speculation that agent content would accept *better* than prose.
+0.654 here versus §8's 0.693 on wikitext looks worse, but §8 measured at `n-max 4`, and deeper
+drafting mechanically lowers the accepted fraction because later draft tokens are less likely.
+A clean comparison needs the same `n-max` on both. Whoever picks up the open item below should
+drive it through `llama-server` and read acceptance directly rather than inferring it from t/s.
+
 **Same sweep on the ROCmFPX fork — this revises §8's "the fork under-speculates" verdict.**
 `-Runtime rocmfpx`, identical Q8_0 file and prompts, so the delta is runtime + draft depth only
 (`results\mtp-nmax-fork.csv`):
