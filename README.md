@@ -10,6 +10,10 @@ stacks, ROCm build scripts, bench harnesses) is Linux-first; this repo fills tha
 and optimized on a Minisforum MS-S1 MAX (128 GB unified LPDDR5X), usable on other GPUs too
 (CUDA / Vulkan / CPU backends included).
 
+**→ [SUMMARY.md](SUMMARY.md) — start here.** Everything measured, condensed: the production config,
+how this machine behaves, which quant to pick, and the six tuning ideas that didn't survive
+measurement. The detail below and in `llm-inference/` backs it up.
+
 ## What's inside
 
 | Folder | What it is |
