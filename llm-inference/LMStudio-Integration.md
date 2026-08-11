@@ -194,22 +194,29 @@ Delete the modified folder and let LM Studio re-download that runtime, or restor
 copy from step 3. Because you overwrote an older version and left `2.28.1` stock, LM Studio still
 has a working engine either way.
 
-## Does it change quality?
-
-Possibly, and this is the more interesting reason to care — but it is **not yet established**.
+## Does it change quality? Measured: yes
 
 §10 of the [main README](README.md) ran an 84-scenario tool-calling benchmark against the *same*
-`Qwen3.6-27B-Q8_0` weights on both runtimes. The ROCmFPX fork scored 86.3 against the production
-ROCm 7 build's 82.7 on a common basis, and passed a prompt-injection safety scenario the other
-failed. Different kernels mean different floating-point rounding, which is enough to change which
-token is sampled and therefore how a multi-turn tool interaction unfolds.
+`Qwen3.6-27B-Q8_0` weights on both runtimes:
 
-That result is from one run per configuration on an instrument with a measured non-zero flip rate,
-so treat it as *suggestive, not proven* — §10 explains exactly why. **Do not adopt this setup
-expecting better answers.** Adopt it to run ROCmFPX-format models in a GUI; treat any quality
-difference as an open question.
+| | lemonade ROCm 7 | ROCmFPX fork |
+|---|---:|---:|
+| Score (common 168-point basis) | 82.7 | **86.3** |
+| Scenarios better / worse | — | **5 better, 1 worse** |
+| TC-60 prompt-injection scenario | ❌ fails | ✅ passes |
 
-*(This section will be updated when the repeat runs land.)*
+A same-config repeat of the suite came back **84/84 identical**, so this is an exact measurement,
+not run-to-run variance. Different kernels produce different floating-point rounding, which is
+enough to change a sampled token and therefore how a multi-turn tool interaction unfolds.
+
+Two things this does **not** mean. It is not evidence that the fork is *safer* — a
+prompt-injection failure that numerical noise can move is a failure sitting near a decision
+boundary, and §11 treats the underlying weakness as a property of the model on both runtimes. And
+84 fixed scenarios measure this scenario set exactly, not tool-calling in general; the direction
+looks solid, the magnitude may not carry to a different pack.
+
+So: a real, measured reason to prefer this build beyond format support — but not a reason to skip
+your own testing on your own workload.
 
 ## Known gaps
 
