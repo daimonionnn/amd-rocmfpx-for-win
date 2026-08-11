@@ -16,6 +16,7 @@ and optimized on a Minisforum MS-S1 MAX (128 GB unified LPDDR5X), usable on othe
 |--------|------------|
 | **[`llm-inference/`](llm-inference/)** — [README](llm-inference/README.md) | **The main project.** ROCmFPX Windows build (`Setup-ROCmFPX.ps1`), headless OpenAI-compatible llama-server with chat WebUI (`Serve-Qwen.ps1`), model fetcher, timing UI — plus all measured findings: the long-context prefill wall, ROCm 7 build gains, MTP speculative decoding, quant trade-offs, ROCmFP4 speed & quality, IOMMU effect. |
 | **[`llm-bench/`](llm-bench/)** — [README](llm-bench/README.md) | Companion benchmark harness (llama.cpp `llama-bench`) and provisioning for the shared binaries. Curated Strix Halo results in [results-strix-halo-rocm.md](llm-bench/results-strix-halo-rocm.md). |
+| **[LMStudio-Integration.md](llm-inference/LMStudio-Integration.md)** | Run the ROCmFPX build **inside LM Studio** by swapping a backend folder — so ROCmFPX-format GGUFs load in the GUI. Four branches with their failure modes, and the HIP-runtime step most guides omit. |
 
 ## Headline results (Qwen3.6-27B, Radeon 8060S, 128 GB)
 

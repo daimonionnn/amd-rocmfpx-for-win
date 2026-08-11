@@ -557,6 +557,15 @@ Serving / tooling (repo root):
   request) on :8082, pointed at the running server.
 - `Setup-ROCmFPX.ps1` / `Get-ROCmFPXModel.ps1` — build the ROCmFPX fork / fetch its models (§8).
 
+Guides:
+
+- [`LMStudio-Integration.md`](LMStudio-Integration.md) — put this build inside **LM Studio** by
+  replacing a backend folder, so ROCmFPX-format GGUFs load in the GUI. Covers all four target
+  choices (ROCm folder, ROCm + copied HIP DLLs, Vulkan folder, HIP SDK on `PATH`) and the step
+  that actually breaks it: our `bin-rocmfpx` ships **without** the HIP runtime, which
+  `Serve-Qwen.ps1` supplies at launch and LM Studio does not. LM Studio already carries every
+  file needed in `backends\vendor\win-llama-rocm-vendor-v6\`, so no HIP SDK is required.
+
 Benchmarks (`scripts\`):
 
 - `scripts\tune-prefill.ps1` — short-prefill hipBLASLt / micro-batch sweep (done; negative result).
