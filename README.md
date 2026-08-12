@@ -84,11 +84,22 @@ why this repo missed it for weeks.
 | Supply | unsloth, mradermacher and bartowski do not make these files and never will. Every ROCmFPX quant in existence comes from a handful of individuals, with per-author recipes that are usually unstated and no independent verification |
 | Sustainability | A one-person fork |
 
-**An important caveat on the quality verdict.** Our ROCmFP4 file comes from one author with
-unknown calibration data; the conventional quants it lost to are unsloth's. **Format and builder
-are not separable in that comparison** — so "ROCmFP4 scores lower" is a statement about this file,
-not proof that the format caps out there. A better-calibrated ROCmFP4 could plausibly close the
-gap while keeping the kernel advantage, and nothing measured here rules that out.
+**An important caveat on the quality verdict — now measured, not just suspected.** Our ROCmFP4
+comes from one author with unknown calibration; the quants it lost to are unsloth's. To find out
+how much of that gap is *format* and how much is *builder*, we ran three builds of the same
+`Q4_K_M` of the same model:
+
+| unsloth | mradermacher | mradermacher `i1` (imatrix) |
+|---:|---:|---:|
+| 85.1 | **87.5** | **83.9** |
+
+**3.6 points of spread from builder alone — exactly the size of the gap that made ROCmFP4 look
+worse.** (And imatrix calibration made it *worse* here, not better, which is its own surprise.)
+So "ROCmFP4 scores lower" is a statement about **this file**, not the format. A better-built
+ROCmFP4 could plausibly close it while keeping the kernel advantage; nothing here rules that out.
+
+The speed result is unaffected — 12–14% is a direct measurement of the same file against peers,
+and builder variation does not move throughput.
 
 **Fair framing: this is a young format.** The 4-bit kernel work is real, measurable and, on this
 hardware, the fastest thing we have run. What it lacks is the ecosystem — reproducible recipes,

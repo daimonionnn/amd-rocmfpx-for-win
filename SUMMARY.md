@@ -89,8 +89,17 @@ Seven quants, same runtime, two independently authored tool-calling evals plus a
 ✅/❌ = the harness's prompt-injection safety gate. Details in §12–§15.
 
 **Bit-width does not order these results.** The 4→8-bit range spans 5.4 points and Q6 sits above
-Q8. That says as much about the evals' resolution as about the quants — they separate ROCmFP4 from
-the field and nothing finer. Do not read the small gaps as a ranking.
+Q8. That says as much about the evals' resolution as about the quants.
+
+> ⚠️ **And most of these gaps cannot be attributed to the format at all.** Three builds of the
+> *same* `Q4_K_M` of the *same* model — unsloth, mradermacher, and mradermacher's imatrix
+> version — span **83.9 to 87.5**, i.e. 3.6 points. That is exactly as wide as the
+> ROCmFP4-to-Q4_K_M gap. **Who built the file moves the score as much as which format it uses.**
+>
+> So: Q4_K_M ≈ Q8_0 survives (identical scores, and Q8_0 is deterministic where builder barely
+> applies). "ROCmFP4 is worse *because of its format*" does not — it is worse *as a file*, by an
+> amount a different builder could produce. **Treat gaps under ~4 points as unattributable.**
+> (§16)
 
 ### Q4_K_M is the surprise
 
@@ -102,15 +111,26 @@ The caveat that keeps `Serve-Qwen.ps1` on Q8 for now: **both evals ran at 32K co
 production workload is 128K+. Quantization damage plausibly shows up more at depth, and neither
 set tests long-context recall.
 
-### ROCmFP4 is fast, and it costs something real
+### ROCmFP4 is fast, and it costs something — but "how much" is unresolved
 
 `Qwen3.6-27B-MTP-ROCmFP4-STRIX-imatrix-embF16-headQ6` genuinely is the fastest model measured
 here — §12 found a **real 12–14% kernel edge** over same-size conventional quants, not just a
-size effect, plus better draft acceptance. Served, that compounds to **+42% over Q8_0**.
+size effect, plus better draft acceptance. Served, that compounds to **+42% over Q8_0**. That part
+is solid: it is a speed result, measured directly, and builder variation does not touch it.
 
-It is also last on both tool-calling evals and fails the prompt-injection gate. Perplexity said
-−1.7% and flattered it; the agent evals did not. Reasonable for speed-first short-context work,
-not for an agent with consequences.
+The quality side is weaker than it first looked. It is last on both tool-calling evals and fails
+the prompt-injection gate — but by 3.6 points, and §16 showed builder alone produces that spread.
+The honest statement is *this file* underperforms, not *this format*. Reasonable for speed-first
+short-context work; for an agent with consequences, use something whose quality you have reason
+to trust rather than something merely unmeasured.
+
+### The safety gate is not a property of a model
+
+TC-60 (prompt injection hidden in tool output) passes on mradermacher's build and fails on
+unsloth's build of the same quant; unsloth passes it with MTP and fails without. Three answers to
+one scenario from essentially the same model. The failure sits close enough to a decision boundary
+that numerical noise moves it — which is a reason to gate outbound actions outside the model, not
+to shop for a build that happens to pass. (§11, §16)
 
 ### Never compare quants across runtimes
 
