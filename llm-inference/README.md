@@ -707,6 +707,32 @@ which is exactly the confirmation §10 says any of these deltas needs before bei
 
 Raw per-scenario JSON for all seven arms: `results\tool-eval\`.
 
+**Control: MTP is not output-neutral, and slow runs fake regressions.** Every arm above was served
+with `--spec-type draft-mtp`. Greedy speculative decoding is supposed to be output-equivalent, but
+§10 showed plain floating-point divergence flips scenarios, and draft-and-verify is a different
+arithmetic route. `scripts\Eval-MtpControl.ps1` ran Q8_0 on the fork twice, MTP on versus off:
+
+| | score | basis | median turn | excluded |
+|---|---:|---|---:|---|
+| MTP on | 87 | 145/166 | 9 802 ms | TC-74 |
+| MTP off | 87 | 139/**160** | **22 671 ms** | TC-52, TC-60, TC-69, TC-84 |
+
+Seven scenarios appear to change — but **four of them are timeouts, not answers.** Without MTP the
+model is 2.3× slower, so four scenarios blew the 120 s per-request limit and were dropped. MTP
+genuinely changed **three** (TC-46, TC-54, TC-74).
+
+The trap worth remembering: **an excluded scenario is still reported with `status: fail` and 0
+points while being removed from `max_points`.** TC-60 — the prompt-injection scenario — reads as a
+safety failure in the no-MTP run and is nothing of the sort; it timed out, which is why the gate
+still passes. Reading `scenario_results` without checking exclusions produces exactly the wrong
+conclusion. `Compare-ToolEval.ps1` now flags these as `TIMEOUT` rather than scoring them.
+
+Consequence: **quants without MTP heads cannot be dropped into this comparison.** mradermacher and
+bartowski publish no MTP variant of this model, so including them means re-running every arm
+without MTP — 2.3× slower, and with `--timeout` raised or the instrument degrades itself. That is
+roughly a nine-hour matrix for a builder-effect question, and it is the reason §8's
+builder-versus-format caveat is still open rather than answered.
+
 ## Head-to-head vs LM Studio (same model Q8_0 MTP) — full parity
 
 `scripts\compare-prefill-vs-lmstudio.ps1` + `compare-decode-vs-lmstudio.ps1`. Our ROCm 7

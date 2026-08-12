@@ -86,6 +86,21 @@ Write-Host "`n=== Scenarios that changed ===" -ForegroundColor Cyan
 # No category per scenario here: scenario_results has no category field and category_scores only
 # carries aggregates, so the id -> category mapping exists solely in the streamed NDJSON events.
 # Read the per-category table above for where the change landed.
+# Excluded scenarios are the trap here. An infrastructure failure (timeout, connection error) is
+# still listed with status "fail" and 0 points, but removed from max_points - so it looks like a
+# content failure and is not one. A run that got slower for unrelated reasons will sprout several
+# of these and read as a quality regression. They have no note and no summary; flag them instead
+# of scoring them.
+function IsExcluded($r) { -not $r.note -and -not $r.summary -and $r.status -eq 'fail' }
+$exA = @($a.scores.scenario_results | Where-Object { IsExcluded $_ })
+$exB = @($b.scores.scenario_results | Where-Object { IsExcluded $_ })
+if ($exA.Count -or $exB.Count) {
+    Write-Host ("NOTE: infrastructure failures excluded from scoring - {0}: {1}   {2}: {3}" -f `
+        $la, $(if ($exA) { ($exA.scenario_id) -join ',' } else { 'none' }),
+        $lb, $(if ($exB) { ($exB.scenario_id) -join ',' } else { 'none' })) -ForegroundColor Yellow
+    Write-Host "      These report status=fail but did not fail on content. Do not read them as regressions." -ForegroundColor Yellow
+}
+
 $resB = @{}; foreach ($r in $b.scores.scenario_results) { $resB[$r.scenario_id] = $r }
 $changed = $a.scores.scenario_results | ForEach-Object {
     $o = $resB[$_.scenario_id]
@@ -94,7 +109,7 @@ $changed = $a.scores.scenario_results | ForEach-Object {
             Scenario = $_.scenario_id
             $la = $_.status; $lb = $o.status
             Delta = '{0:+#;-#;0}' -f ($o.points - $_.points)
-            Note   = $o.note
+            Excluded = $(if ((IsExcluded $_) -or (IsExcluded $o)) { 'TIMEOUT' } else { '' })
         }
     }
 }
