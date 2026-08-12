@@ -663,6 +663,50 @@ Raw data: `results\quant-league.csv` (served) and `results\quant-league-nomtp.cs
 Caveat that applies to all of it: our FP4 is `plunderstruck`'s and the FP6 is `jcbtc`'s while the
 peers are unsloth's, so builder and format are not separable here — see the sourcing note in §8.
 
+### 13. Same-league quality — bit-width does not predict tool-calling (2026-08-11)
+
+The other half of §12: all seven models through the 84-scenario tool-call eval, **same fork
+runtime, same `--hardmode --seed 42`, same `-Ctx 32768`**, scored on a common 168-point basis.
+
+| Model | GiB | Score | Safety gate |
+|---|---:|---:|:---:|
+| UD-Q6_K_XL | 24.23 | **88.1** | ✅ |
+| Q6_K | 21.31 | **88.1** | ✅ |
+| Q8_0 | 27.05 | 86.3 | ✅ |
+| **Q4_K_M** | **15.93** | **86.3** | ✅ |
+| Chadrockv2 FP6 | 23.47 | 85.7 | ✅ |
+| UD-Q4_K_XL | 16.68 | 85.7 | ❌ |
+| **ROCmFP4** | 15.70 | **82.7** | ❌ |
+
+1. **Bit-width does not order the results.** The whole 4→8-bit range spans 5.4 points and the
+   ranking ignores precision entirely: Q6 above Q8, Q4_K_M level with Q8, UD-Q4_K_XL below FP6.
+   The instrument is deterministic (§10: 84/84 on a same-config repeat), so these are exact
+   figures — but a lossier quant scoring *higher* than Q8 means the honest reading is that **this
+   scenario set cannot resolve differences between conventional quants.** It separates ROCmFP4
+   from the field; it does not rank Q4 against Q8.
+2. **Q4_K_M delivers Q8-level tool-calling at 59% of the size** — 86.3 each, both through the
+   safety gate, differing on 6 of 84 scenarios (3 each way). This undercuts the premise the rest
+   of this README is built on. "Quality-first means Q8" was never measured on anything that sees
+   agent behaviour; on the one eval that does, a 4-bit K-quant is indistinguishable from it.
+3. **ROCmFP4 is the only clear outlier** — last, 3.6 below its own size peers, and it fails the
+   TC-60 sleeper-injection scenario. §12 measured it as the fastest model here by a wide margin
+   (+42% served decode over Q8); this is the bill for that. Not free, and the part that is not
+   free is safety behaviour.
+4. **Chadrockv2 FP6 is the mirror image** — quality-competitive (85.7, gate passed) but §12 found
+   it has no kernel edge and a 26% prefill deficit. Fine model, no reason to prefer it.
+5. **Score and safety are different axes.** UD-Q4_K_XL scores a respectable 85.7 and still fails
+   the gate. A single scenario does not move an 84-scenario average, so anything that matters
+   categorically has to be read separately from the total (§11).
+
+**What this changes.** The production recommendation throughout this README — Q8 for quality,
+everything smaller is a compromise — is not supported by the only measurement here that looks at
+agent behaviour. On this box, at this workload, **Q4_K_M is a serious production candidate**: it
+matches Q8 on the eval, passes the safety gate, is 41% smaller, decodes faster, needs no fork, and
+leaves far more room for KV cache at deep context. What it has not had is a second scenario pack,
+which is exactly the confirmation §10 says any of these deltas needs before being acted on.
+
+Raw per-scenario JSON for all seven arms: `results\tool-eval\`.
+
 ## Head-to-head vs LM Studio (same model Q8_0 MTP) — full parity
 
 `scripts\compare-prefill-vs-lmstudio.ps1` + `compare-decode-vs-lmstudio.ps1`. Our ROCm 7
@@ -711,7 +755,20 @@ Benchmarks (`scripts\`):
 
 Results land in `results\`.
 
-## In progress — same-league quant comparison (started 2026-08-11)
+## ~~In progress~~ — DONE (2026-08-11): see §12 (speed) and §13 (quality)
+
+Headline: **ROCmFP4 has a real 12–14% kernel edge and is the fastest model measured here (+42%
+served decode over Q8), and it is also the only model that clearly loses on tool-calling and fails
+the safety gate.** Meanwhile Q4_K_M matches Q8 on quality at 59% of the size — so the "Q8 or
+compromise" framing that runs through this README does not survive contact with an agent eval.
+Chadrockv2 FP6, measured here for the first time, is quality-fine and speed-pointless.
+
+The original plan and the prediction made before the numbers landed are kept below, because both
+were wrong in instructive ways: the sweep was *not* boring (§4's bandwidth constant turned out to
+be an 8% tilt, which is what hid FP4's kernel edge), and the eval did *not* rank the quants (it
+resolves ROCmFP4 versus the field and nothing finer).
+
+## Original plan — same-league quant comparison (started 2026-08-11)
 
 Everything in §8 and §10 compares ROCmFP4 (15.70 GiB) against Q8_0 (27.05 GiB). That is a real
 result but a trivial one: it compares leagues, and of course the 8-bit model wins. The question
