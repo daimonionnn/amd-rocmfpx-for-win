@@ -29,7 +29,14 @@ param(
     [string[]]$Models = @('q4xl','fp6','q6k','q6xl'),
     [int]$Ctx = 32768,
     [int]$Port = 8081,
-    [string]$VenvDir = "$env:TEMP\..\Local\Temp\claude"
+    # Quants without MTP heads (mradermacher, bartowski) can only be compared against arms that
+    # also ran without it - S13's MTP control measured 3 scenarios genuinely shifting.
+    [switch]$NoMtp,
+    # Without MTP the model decodes 2.3x slower and scenarios start blowing the default 120 s
+    # limit. Those get excluded from scoring while still reporting status "fail", which reads as a
+    # quality regression and is not one. Raise this whenever -NoMtp is used.
+    [int]$Timeout = 0,
+    [string]$Suffix = ''
 )
 $ErrorActionPreference = 'Continue'
 
@@ -50,6 +57,14 @@ $catalog = @{
     q6k  = @{ label='Q6_K';           path="$lm\unsloth\Qwen3.6-27B-MTP-GGUF\Qwen3.6-27B-Q6_K.gguf" }
     q6xl = @{ label='UD-Q6_K_XL';     path="$lm\unsloth\Qwen3.6-27B-MTP-GGUF\Qwen3.6-27B-UD-Q6_K_XL.gguf" }
     q8   = @{ label='Q8_0';           path="$lm\unsloth\Qwen3.6-27B-MTP-GGUF\Qwen3.6-27B-Q8_0.gguf" }
+    # A community fine-tune rather than a quant of the base: multi-stage merge, abliterated
+    # ("heretic"/"uncensored"), claiming ARC-C 711 and beating base Qwen3.6-27B on 6 of 7
+    # benchmarks. Reasoning scores and agent discipline are different capabilities, and
+    # abliteration removes the refusal directions our evals specifically probe.
+    dau  = @{ label='DavidAU-711';    path="$lm\DavidAU\Fable-Fusion-711-MTP-Q4_K_M.gguf" }
+    # Same weights as unsloth's, different builder - the format-vs-builder control. No MTP heads.
+    mrad = @{ label='mradermacher-Q4_K_M';    path="$lm\mradermacher\Qwen3.6-27B.Q4_K_M.gguf" }
+    mradi1 = @{ label='mradermacher-i1-Q4_K_M'; path="$lm\mradermacher\Qwen3.6-27B.i1-Q4_K_M.gguf" }
 }
 
 function Stop-Servers {
@@ -65,9 +80,17 @@ foreach ($key in $Models) {
     Write-Host "`n================ $($m.label) ================" -ForegroundColor Cyan
     Stop-Servers
 
-    $serve = Start-Process powershell -PassThru -WindowStyle Hidden -ArgumentList @(
-        '-NoProfile','-File',"$root\Serve-Qwen.ps1",
-        '-Runtime','rocmfpx','-Model',$m.path,'-Ctx',"$Ctx",'-Port',"$Port",'-ListenAddress','127.0.0.1')
+    if ($NoMtp) {
+        # Serve-Qwen.ps1 always enables MTP, so the no-MTP arm launches the fork binary directly.
+        $env:PATH = "$($env:HIP_PATH.TrimEnd('\'))\bin;$env:PATH"
+        $serve = Start-Process "$root\bin-rocmfpx\llama-server.exe" -PassThru -WindowStyle Hidden -ArgumentList @(
+            '-m',$m.path,'-dev','ROCm0','-ngl','-1','-fa','on','-c',"$Ctx",'-t','16',
+            '--host','127.0.0.1','--port',"$Port")
+    } else {
+        $serve = Start-Process powershell -PassThru -WindowStyle Hidden -ArgumentList @(
+            '-NoProfile','-File',"$root\Serve-Qwen.ps1",
+            '-Runtime','rocmfpx','-Model',$m.path,'-Ctx',"$Ctx",'-Port',"$Port",'-ListenAddress','127.0.0.1')
+    }
 
     # Poll for a real ready state, not merely a reachable socket.
     $deadline = (Get-Date).AddMinutes(12)
@@ -83,9 +106,11 @@ foreach ($key in $Models) {
     Write-Host "  server ready, running suite..." -ForegroundColor DarkGray
 
     $env:TOOL_EVAL_BASE_URL = "http://127.0.0.1:$Port"
-    & $teb --hardmode --seed 42 --no-live --label "$($m.label)-fork" `
-           --json-file "$outDir\$key-fork.json" --output-dir $outDir 2>&1 |
-        Select-String 'final_score|Score:|error' | ForEach-Object { "  $($_.Line)" }
+    $tag = if ($Suffix) { $Suffix } elseif ($NoMtp) { '-nomtp' } else { '-fork' }
+    $a = @('--hardmode','--seed','42','--no-live','--label',"$($m.label)$tag",
+           '--json-file',"$outDir\$key$tag.json",'--output-dir',$outDir)
+    if ($Timeout -gt 0) { $a += @('--timeout',"$Timeout") }
+    & $teb @a 2>&1 | Select-String 'final_score|Score:|error' | ForEach-Object { "  $($_.Line)" }
 
     Stop-Servers
 }
