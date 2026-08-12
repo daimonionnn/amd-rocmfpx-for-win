@@ -136,6 +136,12 @@ tool output) is more predictable, so real MTP acceptance/speedup is likely **hig
 
 ## FINAL recommended config (137K-context Hermes agent)
 
+> **Superseded on the quant choice (2026-08-12).** The "Q8 for quality" premise below was never
+> measured on anything that sees agent behaviour. Two independently authored tool-calling evals
+> (§13, §14) now put **Q4_K_M at or above Q8_0** — 41% smaller, faster to decode, more room for
+> KV cache at depth. Everything else in this table still stands. See §15 for the revised
+> recommendation and what would have to be true to go back to Q8.
+
 |                | Old (b9910, Q8) | **Recommended (ROCm 7 + Q8_K_XL + MTP)** |
 |----------------|-----------------|------------------------------------------|
 | TTFT (prefill) | ~68 min         | **~15.5 min** (4.4× faster)              |
@@ -732,6 +738,82 @@ bartowski publish no MTP variant of this model, so including them means re-runni
 without MTP — 2.3× slower, and with `--timeout` raised or the instrument degrades itself. That is
 roughly a nine-hour matrix for a builder-effect question, and it is the reason §8's
 builder-versus-format caveat is still open rather than answered.
+
+### 14. Independent confirmation — BFCL agrees (2026-08-12)
+
+§13 changes this repo's production recommendation, so before acting on it the ranking needed a
+scenario set nobody here authored. [BFCL](https://gorilla.cs.berkeley.edu/leaderboard.html)
+(Berkeley Function Calling Leaderboard, `pip install bfcl-eval`) is that check: independent,
+established, and specifically about function calling. Category `irrelevance` — 240 cases testing
+whether a model correctly declines to call anything when no tool fits — which is the behaviour
+§13's Restraint & Refusal category separated the arms on.
+
+| Model | BFCL `irrelevance` | §13 tool-eval-bench |
+|---|---:|---:|
+| **Q4_K_M** | **84.58%** | 86.3 |
+| Q8_0 | 82.50% | 86.3 |
+| **ROCmFP4** | **80.83%** | 82.7 |
+
+**Same ordering, from two unrelated benchmarks.** Q4_K_M at or above Q8_0; ROCmFP4 last in both.
+
+**The honest limit:** on 240 binary trials at p≈0.83 the standard error is ~2.4 points, so the
+3.75-point spread is about 1.5 SE — **not decisive on its own**, and neither was §13. What carries
+weight is that two independently authored sets point the same way, not the size of either gap.
+
+Setup notes, because each of these costs an hour to rediscover:
+- BFCL has 175 model handlers and **no generic OpenAI-compatible one**. A Qwen3.6-27B has to
+  borrow `Qwen/Qwen3-32B-FC`, a different generation, which decides tool rendering and reply
+  parsing. **Absolute scores here are meaningless** and not comparable to the public leaderboard;
+  only the between-arm comparison is valid, because every arm carries the identical handicap.
+- `LOCAL_SERVER_ENDPOINT` takes a **bare host**, not a URL — BFCL appends the scheme and `/v1`
+  itself. Passing `http://127.0.0.1` produces `http://http://…` and it polls `/models` forever
+  without explaining why.
+- Scoring needs `PYTHONUTF8=1`: BFCL prints emoji and the cp1252 console kills the run *after*
+  the 1.5-hour generation step has already succeeded.
+- Results land in `result/<handler>/`, the same path for every arm, so runs overwrite each other
+  unless moved aside. `scripts\Run-BfclQueue.ps1` handles the server swap and the move.
+- Budget ~1.5 h per category per model. One category across all arms answers more than four
+  categories on one arm.
+
+Raw scores: `results\bfcl\`.
+
+### 15. Revised recommendation — Q4_K_M, not Q8 (2026-08-12)
+
+Everything above this section, and the whole framing of this repo, rests on "quality-first means
+Q8". That was an assumption, not a measurement: until §13 there was nothing here that looked at
+agent behaviour at all, only perplexity — which §8 showed is blind to exactly this.
+
+Two independently authored tool-calling evaluations now say the same thing:
+
+| | §13 tool-eval-bench | §14 BFCL `irrelevance` | Size | Served decode @16K |
+|---|---:|---:|---:|---:|
+| **Q4_K_M** | **86.3** ✅ gate | **84.58%** | **15.93 GiB** | **20.0 t/s** |
+| Q8_0 | 86.3 ✅ gate | 82.50% | 27.05 GiB | 18.5 t/s |
+| ROCmFP4 | 82.7 ❌ gate | 80.83% | 15.70 GiB | 26.2 t/s |
+
+**Q4_K_M matches or beats Q8_0 on both, at 59% of the size and slightly faster.** It also leaves
+11 GiB more room for KV cache, which at 128K+ is where this box's real constraint lives (§7, and
+the 262K memory arithmetic in Open questions). And it needs no fork — it is a standard GGUF that
+runs on the lemonade build, LM Studio, anything.
+
+**What this does not say.** It does not say 4-bit is free in general: §13 found the ranking does
+not track bit-width *at all*, which is a statement about the eval's resolution as much as about
+the quants. Neither eval is individually significant (§14). The claim is narrow and empirical —
+*on this model, this box, and two independent tool-calling sets, Q4_K_M is not worse than Q8_0* —
+not a general endorsement of aggressive quantization.
+
+**What would send this back to Q8:** a third eval that separates them, or any evidence of Q4_K_M
+degrading on long-context recall, which neither set tests. Both evals ran at `-Ctx 32768`; the
+production workload is 128K+, and quantization damage plausibly shows up more at depth. **That gap
+is the main reason `Serve-Qwen.ps1` has not been switched yet.**
+
+**Practical guidance today:**
+
+| Use | Model | Why |
+|---|---|---|
+| Agent, quality-first | **Q4_K_M** or Q8_0 | Indistinguishable on both evals; pick Q4_K_M for the memory headroom, Q8_0 to stay conservative |
+| Short-context interactive, speed-first | **ROCmFP4** | Genuinely the fastest here (§12: real 12–14% kernel edge, +42% served over Q8) — accepted alongside a measured tool-calling regression |
+| Agent with outbound actions | Neither alone | §11's prompt-injection failure is a model property; gate recipients outside the model |
 
 ## Head-to-head vs LM Studio (same model Q8_0 MTP) — full parity
 

@@ -20,6 +20,12 @@ which ones did.
 .\llm-inference\Serve-Qwen.ps1
 ```
 
+> **The quant choice changed on 2026-08-12.** This repo assumed "quality-first means Q8" and never
+> measured it on anything that sees agent behaviour. Two independently authored tool-calling evals
+> now put **Q4_K_M at or above Q8_0** — 41% smaller, slightly faster, far more room for KV cache.
+> Details and the caveat below. `Serve-Qwen.ps1` still defaults to Q8_0 pending a long-context
+> check; override with `-Model ...Qwen3.6-27B-Q4_K_M.gguf`.
+
 | | | |
 |---|---|---|
 | **Model** | `Qwen3.6-27B-Q8_0` | 27.04 GiB, unsloth MTP pack |
@@ -68,27 +74,43 @@ counterintuitively better than 96/32 for 128K+ work, despite the smaller nominal
 
 ## Choosing a quant
 
-| Quant | Size | PPL vs Q8 | Decode 32K | Agent eval | Verdict |
+Seven quants, same runtime, two independently authored tool-calling evals plus a speed sweep.
+
+| Quant | Size | tool-eval-bench | BFCL | Served decode @16K | Verdict |
 |---|---:|---:|---:|---:|---|
-| **Q8_0** | 27.04 GiB | reference | 20.1 t/s | 82.7 | **Production** |
-| Q8_K_XL | 33.3 GiB | ≈ Q8_0 | 13.1 t/s | — | Bigger file, ~1.27× slower decode, no measurable gain |
-| Q6_K | 20.6 GiB | — | ≈8.7 t/s raw | — | Untested — Q8 costs nothing on prefill, so no reason to drop |
-| ROCmFP4 | 15.70 GiB | +1.7% | faster | −3.6, safety gate lost | **Rejected for the agent** |
+| **Q4_K_M** | **15.93 GiB** | **86.3** ✅ | **84.58%** | 20.0 t/s | **Best balance** |
+| Q8_0 | 27.05 GiB | 86.3 ✅ | 82.50% | 18.5 t/s | Conservative default |
+| Q6_K | 21.31 GiB | 88.1 ✅ | — | 19.8 t/s | Fine, untested on BFCL |
+| UD-Q6_K_XL | 24.23 GiB | 88.1 ✅ | — | 17.8 t/s | Fine, no advantage over Q6_K |
+| Chadrockv2 FP6 | 23.47 GiB | 85.7 ✅ | — | 19.8 t/s | No speed edge, needs the fork — pointless |
+| UD-Q4_K_XL | 16.68 GiB | 85.7 ❌ | — | 20.0 t/s | Fails the safety gate |
+| **ROCmFP4** | 15.70 GiB | **82.7** ❌ | **80.83%** | **26.2 t/s** | **Fastest, and last on both evals** |
 
-Agent eval = [tool-eval-bench](https://github.com/SeraphimSerapis/tool-eval-bench), 84 scenarios,
-common 168-point basis. The FP4 comparison is against Q8 **on the same runtime** — see the warning
-below.
+✅/❌ = the harness's prompt-injection safety gate. Details in §12–§15.
 
-### The FP4 model is a good 4-bit quant. That was not enough.
+**Bit-width does not order these results.** The 4→8-bit range spans 5.4 points and Q6 sits above
+Q8. That says as much about the evals' resolution as about the quants — they separate ROCmFP4 from
+the field and nothing finer. Do not read the small gaps as a ranking.
 
-`Qwen3.6-27B-MTP-ROCmFP4-STRIX-imatrix-embF16-headQ6` is Q4_K_M-sized with unsloth UD-style
-protection: F16 token embeddings, Q6 output head, imatrix-calibrated. It loses only **1.7%
-perplexity** against Q8 where a typical Q4_K_M loses 2–4%, and decodes **1.8× faster** at short
-context.
+### Q4_K_M is the surprise
 
-On tool-calling it lost 6 scenarios and won 2, with regressions concentrated in tool selection,
-restraint, toolset scale and safety, **no category improving**, and it failed a prompt-injection
-scenario Q8 passes on the same runtime. Perplexity flattered it; the agent eval did not. (§10)
+Two unrelated benchmarks put it at or above Q8_0, at 59% of the size and slightly faster, with
+11 GiB more room for KV cache — which at 128K+ is this box's actual constraint. It is a standard
+GGUF: no fork, runs in LM Studio, runs anywhere.
+
+The caveat that keeps `Serve-Qwen.ps1` on Q8 for now: **both evals ran at 32K context**, and the
+production workload is 128K+. Quantization damage plausibly shows up more at depth, and neither
+set tests long-context recall.
+
+### ROCmFP4 is fast, and it costs something real
+
+`Qwen3.6-27B-MTP-ROCmFP4-STRIX-imatrix-embF16-headQ6` genuinely is the fastest model measured
+here — §12 found a **real 12–14% kernel edge** over same-size conventional quants, not just a
+size effect, plus better draft acceptance. Served, that compounds to **+42% over Q8_0**.
+
+It is also last on both tool-calling evals and fails the prompt-injection gate. Perplexity said
+−1.7% and flattered it; the agent evals did not. Reasonable for speed-first short-context work,
+not for an agent with consequences.
 
 ### Never compare quants across runtimes
 
@@ -110,8 +132,8 @@ controls. (§10)
 
 | Idea | Why it's closed |
 |---|---|
-| **ROCmFPX 4-bit formats** | Decode gain of 1.79× is almost exactly the 1.72× weight-size ratio — a smaller model, not a faster format. Kernel edge is a few percent at most. (§8) |
-| **ROCmFP6 "quality" recipes** | Third-party FP6 releases sit below Q8 by construction. Published quality gains fall inside the noise of their own evaluations; speed tables are single-run and served end-to-end. (§8) |
+| ~~**ROCmFPX 4-bit formats have no kernel edge**~~ | **Wrong — corrected in §12.** That conclusion compared ROCmFP4 against *Q8*, a different size class. Against same-size conventional quants it is genuinely **12–14% faster on raw decode**, because K-quants pay a dequantization cost that grows as bits shrink and ROCmFP4 does not. The lane is closed on *quality* (§13, §14), not on speed. |
+| **ROCmFP6 "quality" recipes** | Now measured, not just reviewed: Chadrockv2 FP6 scores fine (85.7, gate passed) but has **zero kernel edge** over Q6_K and a 26% prefill deficit — while requiring the fork. Nothing to gain. (§12, §13) |
 | **`Q8_0_ROCMFPX_AGENT`** | The preset promotes nothing above Q8 — it shields 194 of 506 tensors from a cheaper format that plain Q8_0 never uses. Equal or lower precision on every tensor. A `--dry-run` settled it in 176 ms. (§8) |
 | **Q8 KV cache** | Zero prefill gain over f16 (prefill is compute-bound) and it crashed at 128K. Only benefit is memory. Revisit only if a fully filled 262K context ever needs the headroom. (§3) |
 | **Vulkan backend** | Upstream's "Vulkan decodes better" holds, but by 4% — while costing 36% of prefill at 32K. Prefill is the entire bottleneck. (§8) |
