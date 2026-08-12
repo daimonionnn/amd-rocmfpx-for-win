@@ -35,16 +35,70 @@ The journey from stock to tuned, at the workload that hurts — a **128K-token c
 
 Other load-bearing findings (measured, details in [llm-inference/README.md](llm-inference/README.md)):
 
-- **Decode is purely memory-bandwidth-bound** on this APU (`t/s × model-GiB ≈ constant`) —
-  bigger quants decode proportionally slower, and no power mode changes that.
-- **Prefill is quant-independent** — Q8 prefills as fast as Q4, so quality costs nothing on TTFT.
+- **Decode is memory-bandwidth-bound** on this APU (`t/s × model-GiB ≈ constant`) — bigger quants
+  decode proportionally slower, and no power mode changes that. (Nearly constant: the product
+  tilts ~8% from Q8 to Q4 because K-quants pay a dequantization cost. That tilt turned out to
+  matter — see below.)
+- **Prefill is quant-independent at depth** — at 128K Q8 prefills as fast as Q4, so quality costs
+  nothing on TTFT. At 16–32K the spread is real (Q8 is fastest), so this holds where it matters
+  and not everywhere.
 - **At 128K, Q4 and Q8 even decode at the same speed** (the f16 KV cache dominates memory
-  traffic) → run **Q8 + MTP** for quality at no long-context speed cost.
-- **ROCmFP4** (the fork's 4-bit format): decode 1.79× ≈ exactly its size ratio, −1.7% perplexity
-  vs Q8 — a smaller model, not a faster format; its niche is short-context interactive use.
-- **Third-party ROCmFPX "quality" quants don't change this** — the ciru-ai ROCmFP6 STRIX QUALITY
-  release (reviewed 2026-08-09) is slower than our config where the numbers are comparable, caps
-  at 64K, and its quality edge is inside the noise of its own eval. **Production stays Q8.**
+  traffic) → the quant choice at long context is about quality and memory headroom, not speed.
+- **Bit-width does not predict tool-calling quality.** Across seven quants and two independently
+  authored agent evals, the 4→8-bit range spans ~5 points and the ranking ignores precision —
+  **Q4_K_M matches Q8_0**. Perplexity said otherwise and perplexity was wrong.
+
+## ROCmFPX — what it actually buys you
+
+This is the repo's headline feature, so here is everything measured about it rather than a
+one-liner. ROCmFPX is a llama.cpp fork adding AMD-specific GGUF weight formats — `Q4_0_ROCMFP4`,
+`Q6_0_ROCMFPX`, `Q8_0_ROCMFPX` and `_AGENT` presets. Stock llama.cpp cannot read them.
+
+**These are two different formats and they behave nothing alike.** Measured against
+*same-size conventional quants* on the same runtime — the comparison that actually tests the
+format, which most published numbers do not make:
+
+| | `Q4_0_ROCMFP4` | `Q6_0_ROCMFPX` (Chadrockv2 FP6) |
+|---|---|---|
+| **Raw decode vs same-size peers** | **+12–14%** — a real kernel edge | **0%** — identical to Q6_K |
+| **MTP draft acceptance** | 2.01× vs 1.77–1.84× for peers | 2.42× vs 2.17–2.18× |
+| **Served decode @16K** | **26.2 t/s — fastest measured here, +42% over Q8_0** | 19.8 t/s, same as Q6_K |
+| **Prefill** | on par with its league | **−26% against Q6_K** |
+| **Tool-calling (two evals)** | **last of seven; fails the prompt-injection gate** | fine (85.7, gate passed) |
+| **Verdict** | fast, and it costs measurable agent quality | no advantage in either direction |
+
+**Why the kernel edge is real and not just "smaller model".** `t/s × GiB` is not constant across
+bit-widths: K-quants pay a dequantization cost that grows as bits shrink — Q8_0 sits at ~208,
+Q6_K ~202, Q4_K_M ~191. ROCmFP4 sits at ~217, i.e. **on the Q8 line**, which is exactly what 4-bit
+K-quants fail to do. That is genuine kernel work, and it is the strongest technical argument for
+the project. It is also invisible if you benchmark against Q8 instead of a 4-bit peer, which is
+why this repo missed it for weeks.
+
+**Where it is weak — and how much of that is the format's fault:**
+
+| ❌ | Detail |
+|---|---|
+| Quality on agent tasks | ROCmFP4 scored last on both tool-call evals and failed the prompt-injection scenario Q8 passes on the same runtime |
+| Portability | Its GGUFs load nowhere else — stock llama.cpp, LM Studio and Ollama all refuse them (LM Studio can be made to work by [swapping a backend folder](llm-inference/LMStudio-Integration.md)) |
+| Distribution | No releases, no Windows build script upstream — build from source, with an MSVC 14.44 pin |
+| Supply | unsloth, mradermacher and bartowski do not make these files and never will. Every ROCmFPX quant in existence comes from a handful of individuals, with per-author recipes that are usually unstated and no independent verification |
+| Sustainability | A one-person fork |
+
+**An important caveat on the quality verdict.** Our ROCmFP4 file comes from one author with
+unknown calibration data; the conventional quants it lost to are unsloth's. **Format and builder
+are not separable in that comparison** — so "ROCmFP4 scores lower" is a statement about this file,
+not proof that the format caps out there. A better-calibrated ROCmFP4 could plausibly close the
+gap while keeping the kernel advantage, and nothing measured here rules that out.
+
+**Fair framing: this is a young format.** The 4-bit kernel work is real, measurable and, on this
+hardware, the fastest thing we have run. What it lacks is the ecosystem — reproducible recipes,
+multiple independent builders, and the years of quiet bug-finding that make K-quants boring and
+trustworthy. Those are solvable with time and attention, not physics. If better ROCmFP4 quants
+appear, the speed argument is already made and only the quality question would be left open.
+
+**Today's practical read:** use it for speed-first, short-context, low-stakes work where 26 t/s
+beats 18 t/s and a wrong tool call costs nothing. Do not put it behind an agent that can send
+email. And re-check when new quants land — the conclusion here is about the files that exist now.
 
 ## ⚠️ If you own a Strix Halo machine: disable IOMMU in BIOS
 
