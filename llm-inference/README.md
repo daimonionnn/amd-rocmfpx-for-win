@@ -886,6 +886,56 @@ an agent" are different axes, and none of the benchmarks it advertises measures 
 
 Raw JSON: `results\tool-eval\` (`dau-fork`, `q4km-nomtp`, `mrad-nomtp`, `mradi1-nomtp`).
 
+### 17. Long-context recall at 100K — the blocker, cleared (2026-08-13)
+
+§15 declined to switch the production default to Q4_K_M for one reason: every tool-call eval ran
+at 32K while the workload runs at 128K+, and none of them touches long-context recall — the
+mechanism by which quantization damage would be expected to grow with depth.
+
+`scripts\Test-LongContextRecall.ps1`: eight invented facts planted at 5–98% depth in a ~100K-token
+haystack, asked back one at a time, scored by regex on a distinctive value. The facts cannot be
+guessed from world knowledge or from the surrounding wikitext, so a correct answer can only come
+from retrieval.
+
+| Depth | 5% | 15% | 30% | 45% | 60% | 75% | 90% | 98% | Total |
+|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|---|
+| **Q8_0** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | **8/8** |
+| **Q4_K_M** | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | **8/8** |
+
+**No measurable recall degradation from 4-bit at 100K.** Both retrieve every needle, including at
+98% depth. ⚠️ marks the one asymmetry: Q4_K_M found VERDIGRIS but spent its entire 800-token
+budget reasoning and the value only appeared in `reasoning_content`, not the answer. Retrieval
+succeeded; the answer did not surface cleanly. Strictly that is 7 clean + 1 partial against 8
+clean.
+
+**What this does not establish.** Eight needles cannot distinguish small differences — two 100%
+scores tie by construction. It measures retrieval of isolated facts, not reasoning *over* long
+context, and not tool-calling at depth (that run was designed and abandoned: see below). Treat it
+as ruling out gross degradation, not as proof of equivalence.
+
+**Three design mistakes worth recording, because each produced a plausible-looking wrong answer:**
+
+1. **`-c 131072` was unaffordable.** llama.cpp allocates KV for the *entire* declared context, not
+   the part in use, so Q8_0 + 128K KV ≈ 62 GB drove host RAM to 10 GB and the server into
+   thrashing. It ran 5.8 h on one arm and produced nothing. The repo already documents this
+   failure mode in Open questions; I hit it anyway by estimating instead of checking.
+2. **`max_tokens = 64` scored 0/8.** This model is served with reasoning on, so it emits a `<think>`
+   block first and the visible answer stays empty until that finishes. Every question truncated
+   mid-reasoning and returned an empty string — which reads as total recall failure at 100K and is
+   nothing of the sort. The script now records `finish_reason` so truncation can never be mistaken
+   for a miss.
+3. **Exact substring matching scored a correct answer as a miss.** The needle said "two" and the
+   model replied "2". Strict matching measures *formatting*, not recall — and had the two quants
+   differed in style, it would have manufactured a difference of exactly the size these
+   comparisons operate at. `expect` is now a regex.
+
+**The cost note that makes this test viable at all:** the haystack is a fixed prefix, so the server
+prefills it once (~10 min at 100K) and every later question matches at high LCP similarity and
+costs seconds. The first attempt — the tool-call suite under `--context-pressure` — measured 155 s
+per scenario at only 49K depth, i.e. **3.6 h per arm to reach a shallower depth than this test
+reaches in minutes.** Picking the instrument that targets the actual question beat scaling up the
+instrument we already had.
+
 ## Head-to-head vs LM Studio (same model Q8_0 MTP) — full parity
 
 `scripts\compare-prefill-vs-lmstudio.ps1` + `compare-decode-vs-lmstudio.ps1`. Our ROCm 7

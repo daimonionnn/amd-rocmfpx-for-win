@@ -36,6 +36,13 @@ param(
     # limit. Those get excluded from scoring while still reporting status "fail", which reads as a
     # quality regression and is not one. Raise this whenever -NoMtp is used.
     [int]$Timeout = 0,
+    # Fill the context to this fraction before each scenario. Every tool-call result in S13-S16 was
+    # measured at 32K while the real workload runs at 128K+, and neither eval touches long-context
+    # recall - the one place quantization damage would plausibly show up first.
+    # Affordable because llama-server reuses the filler prefix: the first scenario pays a one-off
+    # ~6.6 min prefill of ~78K tokens, subsequent ones match it at LCP similarity ~0.997 and
+    # prefill only their own couple of hundred tokens.
+    [double]$ContextPressure = 0,
     [string]$Suffix = ''
 )
 $ErrorActionPreference = 'Continue'
@@ -106,10 +113,11 @@ foreach ($key in $Models) {
     Write-Host "  server ready, running suite..." -ForegroundColor DarkGray
 
     $env:TOOL_EVAL_BASE_URL = "http://127.0.0.1:$Port"
-    $tag = if ($Suffix) { $Suffix } elseif ($NoMtp) { '-nomtp' } else { '-fork' }
+    $tag = if ($Suffix) { $Suffix } elseif ($ContextPressure -gt 0) { "-p$($ContextPressure -replace '\.','')" } elseif ($NoMtp) { '-nomtp' } else { '-fork' }
     $a = @('--hardmode','--seed','42','--no-live','--label',"$($m.label)$tag",
            '--json-file',"$outDir\$key$tag.json",'--output-dir',$outDir)
     if ($Timeout -gt 0) { $a += @('--timeout',"$Timeout") }
+    if ($ContextPressure -gt 0) { $a += @('--context-pressure',"$ContextPressure",'--context-size',"$Ctx") }
     & $teb @a 2>&1 | Select-String 'final_score|Score:|error' | ForEach-Object { "  $($_.Line)" }
 
     Stop-Servers
