@@ -34,7 +34,11 @@ param(
     [string]$Label = 'model',
     [int]$Port = 8081,
     [int]$HaystackTokens = 100000,
-    [double[]]$Depths = @(0.05,0.15,0.30,0.45,0.60,0.75,0.90,0.98),
+    # One depth per needle, spread across the haystack. Members of a confusable group are placed
+    # far apart on purpose, so retrieving the right one cannot be done by grabbing whatever is
+    # nearby - the model has to land on the correct position.
+    [double[]]$Depths = @(0.03,0.07,0.11,0.15,0.19,0.23,0.27,0.31,0.35,0.40,0.45,0.50,
+                          0.55,0.60,0.64,0.68,0.72,0.76,0.80,0.84,0.88,0.92,0.95,0.98),
     [string]$OutFile = ''
 )
 $ErrorActionPreference = 'Continue'
@@ -54,15 +58,45 @@ $hay    = $corpus.Substring(0, $chars)
 # `expect` is a regex, deliberately: the first run scored a correct answer as a miss because the
 # needle said "two" and the model replied "2". Accepting only one surface form measures formatting,
 # not recall, and would inject noise straight into the quant comparison.
+#
+# The first eight-needle version returned 8/8 for both quants under test - a tie by construction,
+# with no power to separate anything. Isolated distinctive facts are simply too easy to retrieve.
+# This set is built to discriminate: most needles belong to CONFUSABLE GROUPS - three relay codes
+# of identical shape, three cistern volumes, three sealing years, three bridge limits. Getting one
+# right now requires retrieving the right one rather than the gist, which is where a lossier quant
+# should fail first if it fails at all.
 $needles = @(
-    @{ key='ATLAS';   fact='The maintenance code for the Kestrel relay is ATLAS-7734.';       ask='What is the maintenance code for the Kestrel relay?';        expect='ATLAS-?7734' }
-    @{ key='VERDIGRIS'; fact='Sector nine was repainted in verdigris on the third of March.';  ask='What colour was sector nine repainted, and on what date?';   expect='verdigris' }
-    @{ key='BRAMBLE'; fact='Operator Bramble logged 412 hours before the transfer.';           ask='How many hours did operator Bramble log before the transfer?'; expect='412' }
-    @{ key='OKAPI';   fact='The reserve cistern at Okapi Station holds 1,850 litres.';         ask='How many litres does the reserve cistern at Okapi Station hold?'; expect='1[,.]?850' }
-    @{ key='QUILL';   fact='Shipment QUILL-22 was rerouted through Harbour Four.';             ask='Where was shipment QUILL-22 rerouted through?';              expect='Harbou?r (Four|4)' }
-    @{ key='CINDER';  fact='The Cinder protocol requires two independent signatures.';         ask='How many independent signatures does the Cinder protocol require?'; expect='\b(two|2)\b' }
-    @{ key='MARLOW';  fact='Marlow Bridge carries a load limit of 63 tonnes.';                 ask='What load limit does Marlow Bridge carry?';                  expect='63' }
-    @{ key='FENWICK'; fact='The Fenwick archive was sealed in the year 1974.';                 ask='In what year was the Fenwick archive sealed?';               expect='1974' }
+    # --- confusable group: relay maintenance codes, same shape ---
+    @{ key='ATLAS';   fact='The maintenance code for the Kestrel relay is ATLAS-7734.';   ask='What is the maintenance code for the Kestrel relay?';   expect='ATLAS-?7734' }
+    @{ key='ATLAS2';  fact='The maintenance code for the Merlin relay is ATLAS-7743.';    ask='What is the maintenance code for the Merlin relay?';    expect='ATLAS-?7743' }
+    @{ key='ATLAS3';  fact='The maintenance code for the Osprey relay is ATLAS-3477.';    ask='What is the maintenance code for the Osprey relay?';    expect='ATLAS-?3477' }
+    # --- confusable group: cistern volumes ---
+    @{ key='OKAPI';   fact='The reserve cistern at Okapi Station holds 1,850 litres.';    ask='How many litres does the reserve cistern at Okapi Station hold?'; expect='1[,.]?850' }
+    @{ key='OKAPI2';  fact='The reserve cistern at Tapir Station holds 1,580 litres.';    ask='How many litres does the reserve cistern at Tapir Station hold?'; expect='1[,.]?580' }
+    @{ key='OKAPI3';  fact='The reserve cistern at Bongo Station holds 8,150 litres.';    ask='How many litres does the reserve cistern at Bongo Station hold?'; expect='8[,.]?150' }
+    # --- confusable group: archive sealing years ---
+    @{ key='FENWICK'; fact='The Fenwick archive was sealed in the year 1974.';            ask='In what year was the Fenwick archive sealed?';          expect='1974' }
+    @{ key='FENWICK2';fact='The Ashgrove archive was sealed in the year 1947.';           ask='In what year was the Ashgrove archive sealed?';         expect='1947' }
+    @{ key='FENWICK3';fact='The Dunmore archive was sealed in the year 1794.';            ask='In what year was the Dunmore archive sealed?';          expect='1794' }
+    # --- confusable group: bridge load limits ---
+    @{ key='MARLOW';  fact='Marlow Bridge carries a load limit of 63 tonnes.';            ask='What load limit does Marlow Bridge carry?';             expect='\b63\b' }
+    @{ key='MARLOW2'; fact='Thornton Bridge carries a load limit of 36 tonnes.';          ask='What load limit does Thornton Bridge carry?';           expect='\b36\b' }
+    @{ key='MARLOW3'; fact='Kelbrook Bridge carries a load limit of 630 tonnes.';         ask='What load limit does Kelbrook Bridge carry?';           expect='\b630\b' }
+    # --- confusable group: shipment routing ---
+    @{ key='QUILL';   fact='Shipment QUILL-22 was rerouted through Harbour Four.';        ask='Where was shipment QUILL-22 rerouted through?';         expect='Harbou?r (Four|4)' }
+    @{ key='QUILL2';  fact='Shipment QUILL-24 was rerouted through Harbour Two.';         ask='Where was shipment QUILL-24 rerouted through?';         expect='Harbou?r (Two|2)' }
+    # --- confusable group: operator hours ---
+    @{ key='BRAMBLE'; fact='Operator Bramble logged 412 hours before the transfer.';      ask='How many hours did operator Bramble log before the transfer?'; expect='\b412\b' }
+    @{ key='BRAMBLE2';fact='Operator Thistle logged 214 hours before the transfer.';      ask='How many hours did operator Thistle log before the transfer?'; expect='\b214\b' }
+    # --- singletons, kept as a floor: if these fail, something is badly wrong ---
+    @{ key='VERDIGRIS'; fact='Sector nine was repainted in verdigris on the third of March.'; ask='What colour was sector nine repainted?';            expect='verdigris' }
+    @{ key='CINDER';  fact='The Cinder protocol requires two independent signatures.';    ask='How many independent signatures does the Cinder protocol require?'; expect='\b(two|2)\b' }
+    @{ key='PELICAN'; fact='The Pelican valve must be closed before the Heron valve.';    ask='Which valve must be closed before the Heron valve?';    expect='Pelican' }
+    @{ key='SANDPIPER'; fact='Sandpiper Yard was decommissioned after the flood of 2011.';ask='After which event was Sandpiper Yard decommissioned?';  expect='flood|2011' }
+    @{ key='LANTERN'; fact='The Lantern ledger lists exactly 97 unreconciled entries.';   ask='How many unreconciled entries does the Lantern ledger list?'; expect='\b97\b' }
+    @{ key='ORCHARD'; fact='Orchard Gate opens at 04:20 during winter operations.';       ask='At what time does Orchard Gate open during winter operations?'; expect='04:?20|4:20' }
+    @{ key='TRESTLE'; fact='The Trestle inspection is due every 19 weeks.';               ask='How often is the Trestle inspection due?';              expect='\b19\b' }
+    @{ key='HOLLOW';  fact='Hollow Cutting was widened by 3.4 metres in the second phase.'; ask='By how many metres was Hollow Cutting widened in the second phase?'; expect='3\.4' }
 )
 
 # Plant every needle in one haystack so the prefix stays identical across questions - that is what
