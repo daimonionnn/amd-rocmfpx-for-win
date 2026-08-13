@@ -20,15 +20,22 @@ which ones did.
 .\llm-inference\Serve-Qwen.ps1
 ```
 
-> **The quant choice changed on 2026-08-12.** This repo assumed "quality-first means Q8" and never
-> measured it on anything that sees agent behaviour. Two independently authored tool-calling evals
-> now put **Q4_K_M at or above Q8_0** — 41% smaller, slightly faster, far more room for KV cache.
-> Details and the caveat below. `Serve-Qwen.ps1` still defaults to Q8_0 pending a long-context
-> check; override with `-Model ...Qwen3.6-27B-Q4_K_M.gguf`.
+> **The quant default changed to Q4_K_M on 2026-08-13.** This repo assumed "quality-first means Q8"
+> and never measured it against anything that sees agent behaviour. Four measurements — two
+> benchmark authors, three task types — failed to separate them, and the only non-tie favours
+> Q4_K_M. It is 41% smaller, decodes slightly faster, and leaves ~11 GiB more for KV cache, which
+> at 128K+ is this box's actual constraint. Q8_0 is one `-Model` flag away.
+>
+> | | Q8_0 | Q4_K_M |
+> |---|---:|---:|
+> | tool-eval-bench, 84 scenarios | 86.3 | 86.3 |
+> | BFCL `irrelevance`, 240 cases | 82.50% | **84.58%** |
+> | BFCL `multiple`, 200 cases | 89.50% | 89.50% |
+> | 100K needle recall, 24 needles | 24/24 | 24/24 |
 
 | | | |
 |---|---|---|
-| **Model** | `Qwen3.6-27B-Q8_0` | 27.04 GiB, unsloth MTP pack |
+| **Model** | `Qwen3.6-27B-Q4_K_M` | 15.93 GiB, unsloth MTP pack |
 | **Runtime** | ROCm 7 gfx1151 | lemonade build, `-dev ROCm0` |
 | **KV cache** | f16 | Q8 KV buys nothing here |
 | **Draft depth** | `--spec-draft-n-max 6` | +2.8% over the old default of 4 |
@@ -103,13 +110,15 @@ Q8. That says as much about the evals' resolution as about the quants.
 
 ### Q4_K_M is the surprise
 
-Two unrelated benchmarks put it at or above Q8_0, at 59% of the size and slightly faster, with
+Four measurements put it level with or above Q8_0, at 59% of the size and slightly faster, with
 11 GiB more room for KV cache — which at 128K+ is this box's actual constraint. It is a standard
 GGUF: no fork, runs in LM Studio, runs anywhere.
 
-The caveat that keeps `Serve-Qwen.ps1` on Q8 for now: **both evals ran at 32K context**, and the
-production workload is 128K+. Quantization damage plausibly shows up more at depth, and neither
-set tests long-context recall.
+The objection that held the switch back — every tool-call eval ran at 32K while the workload runs
+at 128K+ — was tested directly and did not hold. A 24-needle recall test at 100K depth, built
+around confusable groups (three archives sealed 1974/1947/1794, three bridges rated 63/36/630
+tonnes), returned **24/24 for Q8_0, Q4_K_M and UD-Q8_K_XL alike**. At this depth, retrieval is
+simply not where quantization hurts.
 
 ### ROCmFP4 is fast, and it costs something — but "how much" is unresolved
 
