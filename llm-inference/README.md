@@ -802,10 +802,19 @@ the quants. Neither eval is individually significant (§14). The claim is narrow
 *on this model, this box, and two independent tool-calling sets, Q4_K_M is not worse than Q8_0* —
 not a general endorsement of aggressive quantization.
 
-**What would send this back to Q8:** a third eval that separates them, or any evidence of Q4_K_M
-degrading on long-context recall, which neither set tests. Both evals ran at `-Ctx 32768`; the
-production workload is 128K+, and quantization damage plausibly shows up more at depth. **That gap
-is the main reason `Serve-Qwen.ps1` has not been switched yet.**
+~~**What would send this back to Q8:** a third eval that separates them, or any evidence of Q4_K_M
+degrading on long-context recall.~~ **RESOLVED (2026-08-13) — `Serve-Qwen.ps1` now defaults to
+Q4_K_M.** Two further measurements were run before switching:
+
+| | Q8_0 | Q4_K_M |
+|---|---:|---:|
+| tool-eval-bench, 84 scenarios (§13) | 86.3 | 86.3 |
+| BFCL `irrelevance`, 240 cases (§14) | 82.50% | **84.58%** |
+| BFCL `multiple`, 200 cases | 89.50% | 89.50% |
+| 100K needle recall, 24 needles (§17) | 24/24 | 24/24 |
+
+Four measurements, two benchmark authors, three task types, none of them separating the two — and
+the only non-tie favours Q4_K_M. Q8_0 remains one `-Model` flag away.
 
 **Practical guidance today:**
 
@@ -897,21 +906,30 @@ haystack, asked back one at a time, scored by regex on a distinctive value. The 
 guessed from world knowledge or from the surrounding wikitext, so a correct answer can only come
 from retrieval.
 
-| Depth | 5% | 15% | 30% | 45% | 60% | 75% | 90% | 98% | Total |
-|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|---|
-| **Q8_0** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | **8/8** |
-| **Q4_K_M** | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | **8/8** |
+The first pass used eight isolated facts and returned 8/8 for both — a tie by construction, with no
+power to separate anything. Isolated distinctive facts are too easy: the model only has to land in
+the right region. So the set was rebuilt around **confusable groups**, which is where a lossier
+quant should fail first if it fails at all: three archives sealed in **1974 / 1947 / 1794**, three
+bridges rated **63 / 36 / 630** tonnes, three relays coded **ATLAS-7734 / 7743 / 3477**, with group
+members placed far apart so the right one cannot be found by grabbing whatever is nearby.
 
-**No measurable recall degradation from 4-bit at 100K.** Both retrieve every needle, including at
-98% depth. ⚠️ marks the one asymmetry: Q4_K_M found VERDIGRIS but spent its entire 800-token
-budget reasoning and the value only appeared in `reasoning_content`, not the answer. Retrieval
-succeeded; the answer did not surface cleanly. Strictly that is 7 clean + 1 partial against 8
-clean.
+| 24 needles, depths 3–98% | Result |
+|---|---|
+| **Q8_0** | **24/24** |
+| **Q4_K_M** | **24/24** |
+| **UD-Q8_K_XL** | **24/24** |
 
-**What this does not establish.** Eight needles cannot distinguish small differences — two 100%
-scores tie by construction. It measures retrieval of isolated facts, not reasoning *over* long
-context, and not tool-calling at depth (that run was designed and abandoned: see below). Treat it
-as ruling out gross degradation, not as proof of equivalence.
+**72 of 72 retrievals correct, no misses at any depth.** This is a substantive negative result
+rather than a failure to find one: at 100K, retrieval is not where quantization hurts, including
+at 4 bits.
+
+`UD-Q8_K_XL` is a control on the *reference itself*: §16 showed builder choice moves results ~3.6
+points, so two 8-bit recipes from the same builder test whether "Q8" is even a fixed point. On this
+axis it is — the two agree exactly.
+
+**What this does not establish.** Three perfect scores still tie by construction. It measures
+retrieval of isolated facts, not reasoning *over* long context, and not tool-calling at depth.
+Treat it as ruling out gross degradation, not as proof of equivalence.
 
 **Three design mistakes worth recording, because each produced a plausible-looking wrong answer:**
 
@@ -935,6 +953,17 @@ costs seconds. The first attempt — the tool-call suite under `--context-pressu
 per scenario at only 49K depth, i.e. **3.6 h per arm to reach a shallower depth than this test
 reaches in minutes.** Picking the instrument that targets the actual question beat scaling up the
 instrument we already had.
+
+**Budget BFCL categories by case count and turn depth, not by analogy.** `multi_turn_miss_func` was
+started as the second BFCL category on the strength of `irrelevance` having run at 23 s/case. It
+is 200 cases of up to eight turns each and measured **4.5 min/case — 15 h per arm**, abandoned
+after 3 h and 44 cases. `multiple` (200 single-turn cases) ran in 26 min. Sizes:
+
+| 10–24 cases | 50–155 | 200 (single-turn) | 200 (multi-turn) | 240–1053 |
+|---|---|---|---|---|
+| `format_sensitivity`, `live_relevance`, `live_parallel`, `live_parallel_multiple` | `simple_javascript`, `simple_java`, `web_search`, `memory` | `multiple`, `parallel`, `parallel_multiple` | `multi_turn_base`, `multi_turn_miss_func`, `multi_turn_miss_param`, `multi_turn_long_context` | `irrelevance`, `live_simple`, `simple_python`, `live_irrelevance`, `live_multiple` |
+
+Multi-turn categories are roughly **12× the per-case cost** of single-turn ones at the same count.
 
 ## Head-to-head vs LM Studio (same model Q8_0 MTP) — full parity
 

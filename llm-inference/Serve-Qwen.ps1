@@ -5,8 +5,11 @@
 
 .DESCRIPTION
   This is the "final recommended config" from .\README.md:
-    ROCm 7 build + Qwen3.6-27B-Q8_K_XL + MTP (draft-mtp, n-max 6) + f16 KV.
+    ROCm 7 build + Qwen3.6-27B-Q4_K_M + MTP (draft-mtp, n-max 6) + f16 KV.
   Point your Hermes agent (on another PC) at:  http://<this-PC-LAN-IP>:<Port>/v1
+
+  The quant default moved from Q8_0 to Q4_K_M on 2026-08-13 after four independent measurements
+  failed to separate them - see .\README.md S13-S17. Pass -Model to override either way.
 
 .PARAMETER Runtime
   Which llama.cpp build to serve with.
@@ -75,10 +78,17 @@ $ErrorActionPreference = 'Stop'
 switch ($Runtime) {
     'rocm7' {
         $BinDir = Join-Path $PSScriptRoot '..\llm-bench\bin'
-        # Q8_0 (26.6 GB) = same file/quant LM Studio runs; near-identical quality to Q8_K_XL but
-        # ~1.25-1.4x faster decode (decode is memory-bandwidth bound). For max quality use
-        # -Model ...\Qwen3.6-27B-UD-Q8_K_XL.gguf ; for max speed ...\Qwen3.6-27B-UD-Q4_K_XL.gguf
-        $defaultModel = "$env:USERPROFILE\.lmstudio\models\unsloth\Qwen3.6-27B-MTP-GGUF\Qwen3.6-27B-Q8_0.gguf"
+        # Q4_K_M (15.93 GiB) since 2026-08-13. This used to default to Q8_0 on the assumption that
+        # quality-first means 8-bit, which was never measured against anything that sees agent
+        # behaviour. Four independent measurements now fail to separate them (S13-S17):
+        #   tool-eval-bench 84 scenarios   86.3  vs 86.3
+        #   BFCL irrelevance 240 cases     82.50% vs 84.58%  (Q4_K_M ahead)
+        #   BFCL multiple 200 cases        89.50% vs 89.50%
+        #   100K needle recall, 24 needles 24/24 vs 24/24
+        # Q4_K_M is 41% smaller, decodes slightly faster, and leaves ~11 GiB more for KV cache -
+        # which at 128K+ is this box's actual constraint. For the conservative choice use
+        # -Model ...\Qwen3.6-27B-Q8_0.gguf ; both are in the same unsloth MTP pack.
+        $defaultModel = "$env:USERPROFILE\.lmstudio\models\unsloth\Qwen3.6-27B-MTP-GGUF\Qwen3.6-27B-Q4_K_M.gguf"
         $setupHint    = '..\llm-bench\Setup.ps1'
         $label        = 'ROCm 7 / gfx1151 (lemonade)'
     }
