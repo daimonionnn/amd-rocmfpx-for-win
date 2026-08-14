@@ -904,6 +904,29 @@ not measure quantization level; it measures files.** That is the honest summary 
 and it is why §17's practical conclusion rests on four *agreeing* measurements rather than on the
 size of any one gap.
 
+**The capstone: BF16, the reference nobody had checked.** Every "vs Q8" figure in this repo assumed
+Q8 is effectively lossless — borrowed from common wisdom, never measured here. BF16 is not a quant;
+it is the ceiling. It fits the 64 GB carve-out at 32K with ~4 GiB to spare and decodes at half
+Q8's rate, so the arm ran with `--timeout 600` and came back with **no excluded scenarios at all**:
+
+| | Size | Score /168 | Gate | Median turn |
+|---|---:|---:|:---:|---:|
+| **BF16** | 50.90 GiB | **87.5** | ✅ | 18 004 ms |
+| Q8_0 | 27.05 GiB | 86.3 | ✅ | 9 810 ms |
+| **Q4_K_M** | 15.93 GiB | 86.3 | ✅ | 9 975 ms |
+| UD-Q8_K_XL | 33.32 GiB | 82.1 | ❌ | 12 478 ms |
+
+**Full precision to 4-bit is 1.2 points. Two 8-bit recipes from one builder are 4.2 points.**
+
+> **The recipe gap is 3.5× the entire precision range.**
+
+`UD-Q8_K_XL` makes the point sharpest: it is nominally *more* precise than Q4_K_M, 17 GiB larger,
+and it scores 4.2 points lower while losing the safety gate. On agent tool-calling, at this model
+size, **how a file was built matters several times more than how many bits it keeps.** Q8 is
+confirmed near-lossless — 1.2 points from BF16, inside the noise every other axis produces — so the
+"vs Q8" figures throughout this repo stand, but the ladder they sit on turns out to be much flatter
+than the effort spent climbing it would suggest.
+
 **Fine-tune arm — [DavidAU Fable-Fusion-711](https://huggingface.co/DavidAU/Qwen3.6-27B-Fable-Fusion-711-Uncensored-Heretic-NM-DAU-NEO-MAX-MTP-GGUF)**, a multi-stage
 merge, abliterated, claiming ARC-C 711 and beating base Qwen3.6-27B on 6 of 7 benchmarks. Run with
 MTP against unsloth Q4_K_M with MTP:

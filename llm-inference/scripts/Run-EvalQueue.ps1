@@ -68,6 +68,11 @@ $catalog = @{
     # this measures how much the recipe alone moves it at fixed precision - the last way "Q8" could
     # turn out not to be a fixed reference point.
     q8xl = @{ label='UD-Q8_K_XL';     path="$lm\unsloth\Qwen3.6-27B-MTP-GGUF\Qwen3.6-27B-UD-Q8_K_XL.gguf" }
+    # Not a quant - the reference. Every "vs Q8" figure in this repo assumes Q8 is effectively
+    # lossless, which was borrowed from common wisdom and never checked here. 50.9 GiB of weights
+    # plus ~8.75 GiB of KV at 32K fits the 64 GB carve-out, but only just; decode is ~9.5 t/s so
+    # this arm runs roughly twice as long as the others.
+    bf16 = @{ label='BF16';           path="$lm\unsloth\Qwen3.6-27B-MTP-GGUF\Qwen3.6-27B-BF16-00001-of-00002.gguf" }
     # A community fine-tune rather than a quant of the base: multi-stage merge, abliterated
     # ("heretic"/"uncensored"), claiming ARC-C 711 and beating base Qwen3.6-27B on 6 of 7
     # benchmarks. Reasoning scores and agent discipline are different capabilities, and

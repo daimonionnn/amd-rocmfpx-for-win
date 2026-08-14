@@ -103,6 +103,10 @@ Q8. That says as much about the evals' resolution as about the quants.
 > version — span **83.9 to 87.5**, i.e. 3.6 points. That is exactly as wide as the
 > ROCmFP4-to-Q4_K_M gap. **Who built the file moves the score as much as which format it uses.**
 >
+> The clearest single demonstration: **BF16 (87.5) to Q4_K_M (86.3) is 1.2 points, while
+> `Q8_0` (86.3) to `UD-Q8_K_XL` (82.1) — two 8-bit recipes from the same builder — is 4.2.**
+> The recipe gap is 3.5× the entire precision range from full precision down to 4 bits. (§16)
+>
 > So: Q4_K_M ≈ Q8_0 survives (identical scores, and Q8_0 is deterministic where builder barely
 > applies). "ROCmFP4 is worse *because of its format*" does not — it is worse *as a file*, by an
 > amount a different builder could produce. **Treat gaps under ~4 points as unattributable.**
