@@ -64,6 +64,10 @@ $catalog = @{
     q6k  = @{ label='Q6_K';           path="$lm\unsloth\Qwen3.6-27B-MTP-GGUF\Qwen3.6-27B-Q6_K.gguf" }
     q6xl = @{ label='UD-Q6_K_XL';     path="$lm\unsloth\Qwen3.6-27B-MTP-GGUF\Qwen3.6-27B-UD-Q6_K_XL.gguf" }
     q8   = @{ label='Q8_0';           path="$lm\unsloth\Qwen3.6-27B-MTP-GGUF\Qwen3.6-27B-Q8_0.gguf" }
+    # Second 8-bit recipe from the SAME builder. S16 measured how much the builder moves the score;
+    # this measures how much the recipe alone moves it at fixed precision - the last way "Q8" could
+    # turn out not to be a fixed reference point.
+    q8xl = @{ label='UD-Q8_K_XL';     path="$lm\unsloth\Qwen3.6-27B-MTP-GGUF\Qwen3.6-27B-UD-Q8_K_XL.gguf" }
     # A community fine-tune rather than a quant of the base: multi-stage merge, abliterated
     # ("heretic"/"uncensored"), claiming ARC-C 711 and beating base Qwen3.6-27B on 6 of 7
     # benchmarks. Reasoning scores and agent discipline are different capabilities, and
