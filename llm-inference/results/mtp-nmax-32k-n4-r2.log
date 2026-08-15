@@ -11,7 +11,7 @@ Loading model...
                                     ▀▀    ▀▀
 
 build      : b1-049326a
-model      : C:\Users\matt\.lmstudio\models\unsloth\Qwen3.6-27B-MTP-GGUF\Qwen3.6-27B-Q8_0.gguf
+model      : %USERPROFILE%\.lmstudio\models\unsloth\Qwen3.6-27B-MTP-GGUF\Qwen3.6-27B-Q8_0.gguf
 ftype      : Q8_0
 modalities : text
 

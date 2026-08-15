@@ -4,9 +4,9 @@ ggml_vulkan: Found 1 Vulkan devices:
 ggml_vulkan: 0 = AMD Radeon(TM) 8060S Graphics (AMD proprietary driver) | uma: 1 | fp16: 1 | bf16: 1 | warp size: 64 | shared memory: 32768 | int dot: 1 | matrix cores: KHR_coopmat
 llama_print_build_info: build = 1 (6bf20cd)
 llama_print_build_info: built with Clang 21.0.0 for Windows AMD64
-main: calculating quantization size for 'C:\Users\matt\.lmstudio\models\unsloth\Qwen3.6-27B-MTP-GGUF\Qwen3.6-27B-BF16-00001-of-00002.gguf' as Q8_0_ROCMFPX_AGENT using 16 threads
+main: calculating quantization size for '%USERPROFILE%\.lmstudio\models\unsloth\Qwen3.6-27B-MTP-GGUF\Qwen3.6-27B-BF16-00001-of-00002.gguf' as Q8_0_ROCMFPX_AGENT using 16 threads
 llama_model_loader: additional 1 GGUFs metadata loaded.
-llama_model_loader: loaded meta data with 51 key-value pairs and 866 tensors from C:\Users\matt\.lmstudio\models\unsloth\Qwen3.6-27B-MTP-GGUF\Qwen3.6-27B-BF16-00001-of-00002.gguf (version GGUF V3 (latest))
+llama_model_loader: loaded meta data with 51 key-value pairs and 866 tensors from %USERPROFILE%\.lmstudio\models\unsloth\Qwen3.6-27B-MTP-GGUF\Qwen3.6-27B-BF16-00001-of-00002.gguf (version GGUF V3 (latest))
 llama_model_loader: Dumping metadata keys/values. Note: KV overrides do not apply in this output.
 llama_model_loader: - kv   0:                       general.architecture str              = qwen35
 llama_model_loader: - kv   1:                               general.type str              = model

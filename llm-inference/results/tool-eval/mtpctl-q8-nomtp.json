@@ -2278,5 +2278,5 @@
     "passed": true,
     "warnings": []
   },
-  "report_path": "C:\\Users\\matt\\AppData\\Local\\Temp\\claude\\c--development-amd-rocmfpx-for-win\\cae203bc-704f-4245-9335-e1d3ec34b5ad\\scratchpad\\teb-out\\2026\\08\\2026-08-12T07-48-06.532111Z_83d37ab3--q8_0-nomtp.md"
+  "report_path": "%USERPROFILE%\\AppData\\Local\\Temp\\claude\\c--development-amd-rocmfpx-for-win\\cae203bc-704f-4245-9335-e1d3ec34b5ad\\scratchpad\\teb-out\\2026\\08\\2026-08-12T07-48-06.532111Z_83d37ab3--q8_0-nomtp.md"
 }

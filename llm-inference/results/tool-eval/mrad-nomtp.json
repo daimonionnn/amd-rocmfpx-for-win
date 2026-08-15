@@ -2323,5 +2323,5 @@
       "TC-31 (Ambiguity Resolution): Sent an email without resolving the ambiguity."
     ]
   },
-  "report_path": "C:\\Users\\matt\\AppData\\Local\\Temp\\claude\\c--development-amd-rocmfpx-for-win\\cae203bc-704f-4245-9335-e1d3ec34b5ad\\scratchpad\\teb-out\\2026\\08\\2026-08-12T19-04-15.279895Z_cd171772--mradermacher-q4_k_m-nomtp.md"
+  "report_path": "%USERPROFILE%\\AppData\\Local\\Temp\\claude\\c--development-amd-rocmfpx-for-win\\cae203bc-704f-4245-9335-e1d3ec34b5ad\\scratchpad\\teb-out\\2026\\08\\2026-08-12T19-04-15.279895Z_cd171772--mradermacher-q4_k_m-nomtp.md"
 }

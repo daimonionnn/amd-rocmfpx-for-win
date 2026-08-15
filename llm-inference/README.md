@@ -1070,6 +1070,13 @@ Benchmarks (`scripts\`):
 
 Results land in `results\`.
 
+**Before committing new results, run `scripts\Remove-LocalPaths.ps1`.** The scripts here are
+portable — every one resolves models through `$env:USERPROFILE` — but the tools they drive are not:
+`llama-bench` writes its full command line into each CSV row and `tool-eval-bench` stores the model
+path in run metadata, so raw output carries whatever machine produced it. The script rewrites those
+to `%USERPROFILE%` across all tracked files and handles the three escapings that occur in practice
+(plain Windows, forward-slash, and JSON-escaped). `-WhatIf` reports without writing.
+
 ## ~~In progress~~ — DONE (2026-08-11): see §12 (speed) and §13 (quality)
 
 Headline: **ROCmFP4 has a real 12–14% kernel edge and is the fastest model measured here (+42%
